@@ -1,0 +1,66 @@
+generator client {
+ provider = "prisma-client"
+ output = "../generated/prisma"
+}
+datasource db {
+ provider = "postgresql"
+ schemas = ["public", "private"]
+}
+model Constitution {
+ number Int @id @db.SmallInt
+ text String
+ isSample Boolean @default(true) @map("is_sample")
+ cases Case[]
+ @@map("constitutions")
+ @@schema("public")
+}
+model Case {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ constitutionNumber Int @map("constitution_number") @db.SmallInt
+ description String
+ improvement String
+ status String @default("draft")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+ version Int @default(1)
+ constitution Constitution @relation(fields:[constitutionNumber], references:[number])
+ screenshots CaseScreenshot[]
+ owner CaseOwner?
+ uploads Upload[]
+ // SQL adds partial browsing indexes and a GIN trigram expression index.
+ @@map("cases")
+ @@schema("public")
+}
+model CaseOwner {
+ caseId String @id @map("case_id") @db.Uuid
+ userId String @map("user_id") @db.Uuid
+ case Case @relation(fields:[caseId],references:[id],onDelete:Cascade)
+ // user_id references auth.users with ON DELETE RESTRICT; Auth is managed by Supabase.
+ @@index([userId,caseId],map:"case_owners_user_idx")
+ @@map("case_owners")
+ @@schema("private")
+}
+model Upload {
+ path String @id
+ caseId String @map("case_id") @db.Uuid
+ cleanupClaimed Boolean @default(false) @map("cleanup_claimed")
+ mimeType String @map("mime_type")
+ byteSize BigInt @map("byte_size")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+ case Case @relation(fields:[caseId],references:[id],onDelete:Cascade)
+ screenshot CaseScreenshot?
+ @@index([caseId],map:"uploads_case_idx")
+ @@map("uploads")
+ @@schema("private")
+}
+model CaseScreenshot {
+ id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+ caseId String @map("case_id") @db.Uuid
+ storagePath String @unique @map("storage_path")
+ displayOrder Int @map("display_order") @db.SmallInt
+ case Case @relation(fields:[caseId],references:[id],onDelete:Cascade)
+ upload Upload @relation(fields:[storagePath],references:[path])
+ @@unique([caseId,displayOrder])
+ @@map("case_screenshots")
+ @@schema("public")
+}
