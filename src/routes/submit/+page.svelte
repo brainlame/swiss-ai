@@ -7,7 +7,7 @@
 <div class="page-heading form-page-heading narrow">
   <h1>Submit a case</h1>
   <p>
-    Describe a chatbot interaction, include screenshots, and propose a change to
+    Describe a chatbot interaction, include evidence, and propose a change to
     one constitution.
   </p>
 </div>

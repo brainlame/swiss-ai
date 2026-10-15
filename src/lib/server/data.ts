@@ -72,7 +72,7 @@ export async function getCase(db: SupabaseClient, id: string, owner = false) {
   const { data, error: e } = await db
     .from('cases')
     .select(
-      'id,constitution_number,description,improvement,created_at,updated_at,status,version',
+      'id,constitution_number,description,improvement,created_at,updated_at,status,version,chat_prompt,chat_response',
     )
     .eq('id', id)
     .maybeSingle();

@@ -7,6 +7,7 @@ import {
   safeReturn,
   browseParams,
   MAX_SIZE,
+  validateExchange,
 } from '../../src/lib/validation';
 describe('citizen input', () => {
   it('requires meaningful text and a valid constitution', () => {
@@ -46,6 +47,27 @@ describe('citizen input', () => {
     expect(
       imageSignature(new TextEncoder().encode('RIFF1234WEBP'), 'image/webp'),
     ).toBe(true);
+  });
+  it('requires screenshots unless complete chat evidence is attached, with a maximum of five', () => {
+    expect(() => validateCount(0, false)).toThrow();
+    expect(() => validateCount(0, true)).not.toThrow();
+    expect(() => validateCount(5, true)).not.toThrow();
+    for (const n of [-1, 1.5, 6, NaN])
+      expect(() => validateCount(n, true)).toThrow();
+    expect(() => validateExchange(null)).not.toThrow();
+    expect(() =>
+      validateExchange({ prompt: 'hello', response: 'Hello.' }),
+    ).not.toThrow();
+    for (const value of [
+      undefined,
+      {},
+      'hello',
+      { prompt: 'hi' },
+      { prompt: '  ', response: 'hi' },
+      { prompt: 'hi', response: '\n' },
+      { prompt: 'x'.repeat(10001), response: 'hi' },
+    ])
+      expect(() => validateExchange(value)).toThrow();
   });
   it('validates return destinations', () => {
     for (const path of [

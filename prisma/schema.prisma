@@ -19,6 +19,9 @@ model Case {
  constitutionNumber Int @map("constitution_number") @db.SmallInt
  description String
  improvement String
+ chatPrompt String? @map("chat_prompt")
+ chatResponse String? @map("chat_response")
+ // SQL enforces paired nonblank evidence and immutable exchange columns via a trigger.
  status String @default("draft")
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz

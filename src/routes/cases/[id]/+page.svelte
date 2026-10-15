@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { date } from '#lib/types.js';
+  import ChatEvidence from '#lib/components/ChatEvidence.svelte';
   let { data, form } = $props();
   let confirmDialog: HTMLDialogElement;
   let imageDialog: HTMLDialogElement;
@@ -32,6 +33,12 @@
       >
     </div>
     <h1>Case details</h1>
+    {#if data.item.chat_prompt && data.item.chat_response}<ChatEvidence
+        exchange={{
+          prompt: data.item.chat_prompt,
+          response: data.item.chat_response,
+        }}
+      />{/if}
     {#if data.item.version > 2}<p class="helper">
         Updated {date(data.item.updated_at)}
       </p>{/if}
@@ -54,21 +61,21 @@
       <h2>Proposed constitutional improvement</h2>
       <p class="citizen-text">{data.item.improvement}</p>
     </section>
-    <section class="detail-section">
-      <h2>Chatbot screenshots</h2>
-      <p class="helper">Select a screenshot to enlarge it.</p>
-      <div class="evidence-grid">
-        {#each data.item.screenshots as screenshot, i}<button
-            class="evidence-button"
-            onclick={() => enlarge(i)}
-            aria-label={'Enlarge screenshot ' + (i + 1)}
-            ><img
-              src={screenshot.url}
-              alt={'Chatbot screenshot ' + (i + 1)}
-            /><span>Screenshot {i + 1} </span></button
-          >{/each}
-      </div>
-    </section>
+    {#if data.item.screenshots.length}<section class="detail-section">
+        <h2>Chatbot screenshots</h2>
+        <p class="helper">Select a screenshot to enlarge it.</p>
+        <div class="evidence-grid">
+          {#each data.item.screenshots as screenshot, i}<button
+              class="evidence-button"
+              onclick={() => enlarge(i)}
+              aria-label={'Enlarge screenshot ' + (i + 1)}
+              ><img
+                src={screenshot.url}
+                alt={'Chatbot screenshot ' + (i + 1)}
+              /><span>Screenshot {i + 1} </span></button
+            >{/each}
+        </div>
+      </section>{/if}
     {#if data.owns}<div class="owner-actions">
         <a class="button secondary" href={'/cases/' + data.item.id + '/edit'}
           >Edit case</a

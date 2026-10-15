@@ -1,5 +1,11 @@
 import { json, error } from '@sveltejs/kit';
-import { validateText, validateCount, UUID } from '#lib/validation.js';
+import {
+  validateText,
+  validateCount,
+  validateExchange,
+  UUID,
+} from '#lib/validation.js';
+import { selectReply } from '#lib/chatbot.js';
 import { cleanup } from '#lib/server/data.js';
 export const POST = async ({ locals, request, url }) => {
   if (!locals.user)
@@ -12,26 +18,34 @@ export const POST = async ({ locals, request, url }) => {
   const body = await request.json();
   const { id, description, improvement, constitution, version, paths, stage } =
     body;
+  const exchange: unknown = body.exchange ?? null;
   if (
     !UUID.test(id) ||
     typeof description !== 'string' ||
     typeof improvement !== 'string' ||
-    !Number.isInteger(version)
+    !Number.isInteger(version) ||
+    !['begin', 'commit'].includes(stage)
   )
     error(400, 'Invalid case data.');
   try {
     validateText(description, improvement, constitution);
-    if (stage !== 'begin')
-      validateCount(Array.isArray(paths) ? paths.length : 0);
+    validateExchange(exchange);
   } catch (e) {
     error(400, (e as Error).message);
   }
   if (stage === 'begin') {
+    if (exchange && selectReply(exchange.prompt).text !== exchange.response)
+      error(
+        400,
+        'The attached response does not match this simulated chatbot exchange. Select the response again from Chatbot.',
+      );
     const { data, error: e } = await locals.supabase.rpc('begin_case', {
       p_id: id,
       p_constitution: constitution,
       p_description: description,
       p_improvement: improvement,
+      p_chat_prompt: exchange?.prompt ?? null,
+      p_chat_response: exchange?.response ?? null,
     });
     if (e)
       error(
@@ -40,8 +54,35 @@ export const POST = async ({ locals, request, url }) => {
       );
     return json({ id: data });
   }
-  if (!paths.every((p: unknown) => typeof p === 'string'))
+  if (
+    !Array.isArray(paths) ||
+    !paths.every((p: unknown) => typeof p === 'string')
+  )
     error(400, 'Invalid screenshots.');
+  const { data: existing, error: caseError } = await locals.supabase
+    .from('cases')
+    .select('chat_prompt,chat_response')
+    .eq('id', id)
+    .maybeSingle();
+  if (caseError)
+    error(503, 'Could not read the case evidence. Retry your save.');
+  if (!existing) error(404, 'Case not found.');
+  if (
+    (exchange?.prompt ?? null) !== existing.chat_prompt ||
+    (exchange?.response ?? null) !== existing.chat_response
+  )
+    error(
+      400,
+      'The attached chat exchange is read-only. Reload this case before saving.',
+    );
+  try {
+    validateCount(
+      paths.length,
+      existing.chat_prompt !== null && existing.chat_response !== null,
+    );
+  } catch (e) {
+    error(400, (e as Error).message);
+  }
   const { data: previous, error: readError } = await locals.supabase
     .from('case_screenshots')
     .select('storage_path')

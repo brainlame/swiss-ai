@@ -1,6 +1,6 @@
 # AI Constitutions
 
-A mobile-first SvelteKit 3 / Svelte 5 / TypeScript app for collecting public chatbot evidence and concrete improvements to 11 **sample** constitutions. The working title and sample statements can be replaced. Citizen cases have exactly four fields: screenshots, description, proposed improvement, and one constitution. No public profile or account identifier is published.
+A mobile-first SvelteKit 3 / Svelte 5 / TypeScript app for collecting public chatbot evidence and concrete improvements to 11 **sample** constitutions. The working title and sample statements can be replaced. Citizen cases have four form fields: screenshots, description, proposed improvement, and one constitution. Screenshots are optional only when a read-only chat exchange is attached. No public profile or account identifier is published.
 
 ## Install and run
 
@@ -21,7 +21,13 @@ The main navigation includes **Chatbot**, a signed-in page at `/chatbot`. The se
 
 `src/lib/chatbot.ts` contains exactly 50 predefined response rules plus a fallback. The matcher accepts only the latest message, normalizes Unicode, case, whitespace and curly apostrophes, and requires Unicode word boundaries. Matching phrases with more whitespace-separated words take precedence; equal specificity uses the rules' declared order, regardless of where the phrase occurs in the message. Replies intentionally include helpful, incorrect, overconfident, dismissive and mixed examples. The page clearly identifies the simulation; the replies are not factual guidance or adopted policy.
 
-The typed page-local message objects have stable random IDs, roles, text, ISO timestamps and an internal matched-rule ID for assistant messages. Nothing is stored in Supabase, browser storage, cookies or URLs, or sent to a model/API or application log. Navigating away, refreshing, signing out and leaving via browser history clears the conversation. Returning starts empty. No migrations, profiles, exports or case-creation controls are added.
+The typed page-local message objects have stable random IDs, roles, text, ISO timestamps and an internal matched-rule ID for assistant messages. The active conversation stays in page memory; it is not saved to Supabase, browser storage, cookies, URLs or application logs, and uses no external model/API. Navigating away, refreshing, signing out and leaving via browser history clears it. Returning starts empty. Messages have a 10,000-character limit, matching case-evidence validation.
+
+**Hints** beside the Chatbot heading opens an accessible native dialog with 50 categories and natural-language clues, one for each rule (`src/lib/chatbot-hints.ts`). The list reveals no replies and has no clickable prompts. Escape or Close dismisses it and returns focus to Hints.
+
+**Create a case** below every assistant reply carries exactly that reply and its immediately preceding user message to `/submit?source=chatbot`. This is a one-use in-memory transfer, with no message text in the URL or browser storage. The form shows two read-only evidence bubbles and reminds the author that the exchange will become public. Only these two text entries are stored, when the user submits the case; no rule IDs, message IDs, author IDs or other conversation messages are attached. Refreshing an unsaved form discards this transfer and shows an actionable notice; ordinary screenshot submission remains available.
+
+The `20261015000000_chat_exchange_evidence.sql` migration adds nullable `chat_prompt` and `chat_response` case columns. A paired-value constraint and immutable-column trigger protect the evidence; authenticated RPCs retain owner binding, and `commit_case` permits zero screenshots only for a complete attached exchange. Existing screenshot cases still require 1–5 images. The save endpoint also verifies new responses against the local simulation and rejects exchange changes during edits. SQL permissions remain the authority for direct API requests: attached citizen evidence is not a cryptographically certified transcript. Owners can edit descriptions, proposals, constitution references and screenshots, while the two evidence texts remain unchanged. The same bubbles appear on public detail and owner edit pages. Prisma documents the columns; its comments identify constraints and triggers represented only in SQL.
 
 Desktop Enter sends, Shift+Enter inserts a newline, and touch devices retain multiline Enter with a Send button. The conversation follows new messages only while near the bottom. A Visual Viewport resize handler keeps the composer within the available height when the on-screen keyboard resizes the viewport. Actual keyboard behavior still depends on the mobile browser; automated tests emulate touch and reduced viewport height rather than a physical phone keyboard.
 
@@ -29,9 +35,9 @@ Run `npm test` for all rule, precedence and authentication unit tests. Run `npm 
 
 ## Database and Storage setup
 
-**An administrator must apply the migration. The publishable key cannot do this.** The authoritative migration is `supabase/migrations/20261012000000_initial.sql`; it includes tables, constraints, indexes, RLS, private ownership, restricted RPCs, a private `screenshots` bucket, Storage policies, and exactly 11 seed statements. Apply it once to a new/dedicated project, in a transaction.
+**An administrator must apply migrations. The publishable key cannot do this.** SQL migrations in `supabase/migrations/` are authoritative. Apply them once in filename order: `20261012000000_initial.sql` sets up tables, constraints, indexes, RLS, private ownership, RPCs, screenshot Storage and 11 seed statements; `20261015000000_chat_exchange_evidence.sql` adds chat evidence and updates case RPCs. Existing installations that already applied the initial migration must apply only the new chat-evidence migration before deploying the updated app.
 
-Option A: paste the migration into the project's Supabase SQL Editor, preceded by `BEGIN;` and followed by `COMMIT;`.
+Option A: paste each unapplied migration into the project's Supabase SQL Editor, preceded by `BEGIN;` and followed by `COMMIT;`, in filename order.
 
 Option B: install the Supabase CLI, authenticate, link the project and push:
 
@@ -45,6 +51,7 @@ Option C: use an administrator database connection with `psql`:
 
 ```sh
 psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261012000000_initial.sql
+psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261015000000_chat_exchange_evidence.sql
 ```
 
 Keep `private` and `storage` out of PostgREST's exposed schemas. The normal exposed schemas are `public` and `graphql_public`. The migration intentionally revokes application table writes; users mutate their records through restricted, transactional RPCs. On an existing project, audit pre-existing permissive policies for the same bucket: PostgreSQL policies combine with OR. This migration assumes a new bucket named `screenshots` and fails visibly if it already exists.
@@ -92,7 +99,7 @@ Alternatively the standard `{{ .ConfirmationURL }}` template uses the PKCE `/aut
 
 Screenshots are 1–5 PNG/JPEG/WebP files, at most 10 MiB each. The form displays previews, removal, and per-file transfer progress. The SvelteKit upload endpoint checks file size, MIME and magic bytes; the Storage bucket independently enforces allowed MIME/size for direct requests. Original filenames and user IDs never form part of storage paths: `random-case-uuid/random-image-uuid.ext`.
 
-A private draft is created under the verified account, paths are reserved, and files are uploaded. `commit_case` checks one to five distinct objects, their stored byte sizes/types and case ownership, then publishes case text and screenshot references atomically. Retry IDs prevent duplicate creation; versions reject stale concurrent edits, while exact commit retries are idempotent. Edits upload replacements to new immutable paths. Failed saves keep form text, retained evidence and successfully uploaded pending images so the user can retry. Only completed submissions are public. Citizen text is rendered as escaped text.
+A private draft is created under the verified account, with the selected chat evidence if present. Screenshot paths are reserved and files are uploaded when provided. `commit_case` requires 1–5 distinct images for ordinary cases, or 0–5 for cases with a complete attached exchange. It checks stored image byte sizes/types and case ownership, then publishes case text and screenshot references atomically. Retry IDs prevent duplicate creation; versions reject stale concurrent edits, while exact commit retries (including empty image arrays) are idempotent. Edits upload replacements to new immutable paths. Failed saves keep form text, retained evidence and successfully uploaded pending images so the user can retry. Only completed submissions are public. Citizen text is rendered as escaped text.
 
 Successful edits attempt immediate cleanup of removed/pending evidence. Failures are explicitly reported while the saved public content remains valid. Deletion first hides the case, deletes images via Storage's API, then deletes the case and its screenshot/ownership/upload records. Failed deletion is visible in My Cases and can be retried. Storage objects are **never** deleted by manipulating their SQL metadata directly in application code.
 
@@ -143,7 +150,7 @@ Use a disposable PostgreSQL instance with `pg_trgm`. The bootstrap imitates only
 ```sh
 initdb -D /tmp/ai-constitutions-test -A trust -E UTF8
 pg_ctl -D /tmp/ai-constitutions-test -l /tmp/ai-constitutions-test.log -o '-p 55439 -h 127.0.0.1' start
-psql -h 127.0.0.1 -p 55439 -d postgres -v ON_ERROR_STOP=1 -f tests/postgres-bootstrap.sql -f supabase/migrations/20261012000000_initial.sql
+psql -h 127.0.0.1 -p 55439 -d postgres -v ON_ERROR_STOP=1 -f tests/postgres-bootstrap.sql -f supabase/migrations/20261012000000_initial.sql -f supabase/migrations/20261015000000_chat_exchange_evidence.sql
 export TEST_DATABASE_URL="postgresql://$USER@127.0.0.1:55439/postgres"
 npm run test:integration
 ```
@@ -166,7 +173,7 @@ Playwright starts the app and a **loopback-only fixture adapter**, overriding Su
 
 ### Real Supabase direct-request tests
 
-Apply the migration to an **isolated Supabase test project** or the local Supabase stack. Set `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY`, and server-only `TEST_SUPABASE_SERVICE_ROLE_KEY` in your shell. For a dedicated remote test project, also set `TEST_ISOLATED_PROJECT=1` to explicitly attest it is isolated. Then run `npm run test:integration`. Tests create temporary verified accounts, use separate owner/other/anon SDK clients to test direct PostgREST and Storage calls, and delete their cases/users afterward. This suite is skipped unless all three test credentials are present; application `.env` credentials never implicitly enable it.
+Apply both migrations to an **isolated Supabase test project** or the local Supabase stack. Set `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY`, and server-only `TEST_SUPABASE_SERVICE_ROLE_KEY` in your shell. For a dedicated remote test project, also set `TEST_ISOLATED_PROJECT=1` to explicitly attest it is isolated. Then run `npm run test:integration`. Tests create temporary verified accounts, use separate owner/other/anon SDK clients to test direct PostgREST and Storage calls, and delete their cases/users afterward. This suite is skipped unless all three test credentials are present; application `.env` credentials never implicitly enable it.
 
 Stop the disposable server after tests:
 

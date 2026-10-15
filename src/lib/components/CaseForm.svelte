@@ -8,11 +8,23 @@
     validateText,
   } from '#lib/validation.js';
   import type { Constitution, CaseRecord } from '#lib/types.js';
+  import ChatEvidence from '#lib/components/ChatEvidence.svelte';
+  import {
+    takeExchange,
+    clearExchange,
+    type ChatExchange,
+  } from '#lib/chat-evidence.js';
   let {
     constitutions,
     item,
   }: { constitutions: Constitution[]; item?: CaseRecord } = $props();
   const initial = untrack(() => item);
+  let exchange = $state<ChatExchange | null>(
+    initial?.chat_prompt && initial.chat_response
+      ? { prompt: initial.chat_prompt, response: initial.chat_response }
+      : null,
+  );
+  let handoffMissing = $state(false);
   type Entry = { key: string; url: string; file?: File; path?: string };
   let description = $state(initial?.description ?? ''),
     improvement = $state(initial?.improvement ?? ''),
@@ -39,6 +51,10 @@
   onMount(() => {
     if (!id) id = crypto.randomUUID();
     if (!item) {
+      if (page.url.searchParams.get('source') === 'chatbot') {
+        exchange = takeExchange();
+        handoffMissing = !exchange;
+      } else clearExchange();
       const n = Number(page.url.searchParams.get('constitution'));
       if (n >= 1 && n <= 11) constitution = n;
     }
@@ -48,7 +64,7 @@
     const files = Array.from((event.target as HTMLInputElement).files ?? []);
     message = '';
     try {
-      validateCount(entries.length + files.length);
+      validateCount(entries.length + files.length, !!exchange);
       files.forEach(validateFile);
       entries = [
         ...entries,
@@ -121,7 +137,7 @@
     message = '';
     try {
       validateText(description, improvement, constitution);
-      validateCount(entries.length);
+      validateCount(entries.length, !!exchange);
     } catch (e) {
       message = (e as Error).message;
       return;
@@ -135,6 +151,7 @@
       constitution,
       version: item?.version ?? 1,
       discardedPaths,
+      exchange,
     };
     try {
       stage = 'Preparing your case…';
@@ -175,15 +192,28 @@
   </form>
 {:else}
   <form class="case-form" onsubmit={submit}>
+    {#if exchange}<ChatEvidence {exchange} />
+      <p class="notice">
+        This exchange will be public. If it contains identifying information,
+        return to the <a href="/chatbot">Chatbot</a> and use an anonymized prompt
+        before creating a case.
+      </p>
+    {:else if handoffMissing}<p class="notice" role="status">
+        The selected exchange is no longer available after leaving or refreshing
+        this form. <a href="/chatbot">Return to Chatbot</a> to select a new exchange,
+        or attach screenshots below.
+      </p>{/if}
     <section class="form-section" aria-label="Evidence">
       <div class="field-body">
         <label id="screenshots-label" for="screenshots"
           >Chatbot screenshots <span class="required" aria-hidden="true"
-            >Required</span
+            >{exchange ? 'Optional' : 'Required'}</span
           ></label
         >
         <p id="screenshot-help" class="helper">
-          Add 1–5 PNG, JPEG, or WebP images. Maximum 10 MB per image.
+          {exchange
+            ? 'Your attached exchange provides evidence. Add up to 5 screenshots if useful.'
+            : 'Add 1–5 screenshots.'} PNG, JPEG, or WebP; maximum 10 MB per image.
         </p>
         <div class="privacy-note" id="privacy-note">
           <p>

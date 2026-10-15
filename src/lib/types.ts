@@ -13,6 +13,8 @@ export type CaseRecord = {
   updated_at: string;
   status: string;
   version: number;
+  chat_prompt: string | null;
+  chat_response: string | null;
   screenshots: Screenshot[];
 };
 export const date = (value: string) =>

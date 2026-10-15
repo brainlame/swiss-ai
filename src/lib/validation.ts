@@ -39,9 +39,33 @@ export function validateFile(file: { size: number; type: string }) {
   if (file.size < 1 || file.size > MAX_SIZE)
     throw new Error('Each image must be nonempty and no larger than 10 MB.');
 }
-export function validateCount(count: number) {
-  if (count < 1 || count > 5)
-    throw new Error('Choose one to five screenshots.');
+export function validateCount(count: number, hasExchange = false) {
+  if (!Number.isInteger(count) || count < (hasExchange ? 0 : 1) || count > 5)
+    throw new Error(
+      hasExchange
+        ? 'Choose up to five screenshots.'
+        : 'Choose one to five screenshots.',
+    );
+}
+export function validateExchange(
+  value: unknown,
+): asserts value is import('#lib/chat-evidence.js').ChatExchange | null {
+  if (value === null) return;
+  if (
+    typeof value !== 'object' ||
+    !value ||
+    !('prompt' in value) ||
+    !('response' in value) ||
+    typeof value.prompt !== 'string' ||
+    typeof value.response !== 'string' ||
+    !value.prompt.trim() ||
+    !value.response.trim() ||
+    value.prompt.length > 10000 ||
+    value.response.length > 10000
+  )
+    throw new Error(
+      'A chat exchange needs a prompt and response of 1–10,000 characters each.',
+    );
 }
 export function imageSignature(bytes: Uint8Array, mime: string) {
   return mime === 'image/png'

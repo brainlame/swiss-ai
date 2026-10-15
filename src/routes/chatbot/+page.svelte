@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { beforeNavigate } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
   import { selectReply, type ChatMessage } from '#lib/chatbot.js';
+  import { chatbotHints } from '#lib/chatbot-hints.js';
+  import { attachExchange, clearExchange } from '#lib/chat-evidence.js';
 
   let messages = $state<ChatMessage[]>([]);
   let draft = $state('');
@@ -13,6 +15,27 @@
   let nearBottom = true;
   let mobileInput = $state(false);
   let active = true;
+  let hintsDialog: HTMLDialogElement;
+  let openingCase = $state(false);
+  let caseError = $state('');
+
+  async function createCase(index: number) {
+    if (openingCase) return;
+    const response = messages[index];
+    const prompt = messages[index - 1];
+    if (response?.role !== 'assistant' || prompt?.role !== 'user') return;
+    openingCase = true;
+    caseError = '';
+    attachExchange({ prompt: prompt.text, response: response.text });
+    try {
+      await goto('/submit?source=chatbot');
+    } catch {
+      caseError = 'The case form could not be opened. Please try again.';
+    } finally {
+      clearExchange();
+      openingCase = false;
+    }
+  }
 
   function resetConversation() {
     active = false;
@@ -135,7 +158,14 @@
   aria-labelledby="chatbot-title"
 >
   <div class="chatbot-heading">
-    <h1 id="chatbot-title">Chatbot</h1>
+    <div class="chatbot-title-row">
+      <h1 id="chatbot-title">Chatbot</h1>
+      <button
+        class="button secondary hints-button"
+        disabled={!ready}
+        onclick={() => hintsDialog.showModal()}>Hints</button
+      >
+    </div>
     <p id="chatbot-introduction">
       A simulated chatbot with predefined replies. Some replies are
       intentionally flawed. Your conversation disappears when you leave this
@@ -163,7 +193,7 @@
       </div>
     {/if}
     <div class="chat-messages">
-      {#each messages as message (message.id)}
+      {#each messages as message, index (message.id)}
         <article
           class="chat-message"
           class:user-message={message.role === 'user'}
@@ -173,17 +203,25 @@
         >
           <h2>{message.role === 'user' ? 'You' : 'Chatbot'}</h2>
           <p>{message.text}</p>
+          {#if message.role === 'assistant'}<button
+              type="button"
+              class="create-case-link"
+              disabled={openingCase}
+              onclick={() => createCase(index)}>Create a case</button
+            >{/if}
         </article>
       {/each}
     </div>
   </div>
 
   <div class="chat-composer-area">
+    {#if caseError}<p class="notice error" role="alert">{caseError}</p>{/if}
     <form class="chat-composer" onsubmit={send} aria-label="Send a message">
       <label for="chat-message" class="sr-only">Message</label>
       <textarea
         id="chat-message"
         rows="1"
+        maxlength="10000"
         bind:this={composer}
         bind:value={draft}
         oninput={resizeComposer}
@@ -212,3 +250,29 @@
     >
   </div>
 </section>
+
+<dialog
+  bind:this={hintsDialog}
+  class="hints-dialog"
+  aria-labelledby="hints-title"
+  aria-describedby="hints-introduction"
+>
+  <div class="hints-heading">
+    <h2 id="hints-title">Explore the chatbot</h2>
+    <button
+      type="button"
+      class="button secondary"
+      onclick={() => hintsDialog.close()}>Close</button
+    >
+  </div>
+  <p id="hints-introduction">
+    One hint for each of the 50 predefined behaviors. Try these topics in your
+    own words; some replies are intentionally flawed.
+  </p>
+  <ol class="chat-hints">
+    {#each chatbotHints as hint (hint.id)}<li>
+        <h3>{hint.category}</h3>
+        <p>{hint.hint}</p>
+      </li>{/each}
+  </ol>
+</dialog>
