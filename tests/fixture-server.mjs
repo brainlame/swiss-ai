@@ -2,7 +2,7 @@
 // Loopback-only SDK test adapter. PostgreSQL/RLS are real; Auth and file transport are fixtures.
 import http from 'node:http';
 import pg from 'pg';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 const database = process.env.TEST_DATABASE_URL;
 if (
   !database ||
@@ -30,6 +30,8 @@ const users = [
   user_metadata: {},
 }));
 const files = new Map();
+// Isolated OAuth transport: verifies real PKCE challenges without contacting Google.
+const oauthCodes = new Map();
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
   'base64',
@@ -83,6 +85,7 @@ async function seed() {
         [u.id, u.email],
       );
     files.clear();
+    oauthCodes.clear();
     for (let i = 0; i < 26; i++) {
       const id = 'eeeeeeee-0000-4000-8000-' + String(i + 1).padStart(12, '0'),
         path = id + '/' + randomUUID() + '.png';
@@ -158,7 +161,53 @@ const server = http.createServer(async (req, res) => {
   }
   if (path.startsWith('/auth/v1/')) {
     const u = user(req);
-    if (path.endsWith('/token')) {
+    if (path.endsWith('/authorize')) {
+      const destination = new URL(url.searchParams.get('redirect_to'));
+      if (
+        url.searchParams.get('provider') !== 'google' ||
+        !url.searchParams.get('code_challenge') ||
+        url.searchParams.get('code_challenge_method')?.toLowerCase() !==
+          's256' ||
+        destination.origin !== 'http://127.0.0.1:4173' ||
+        destination.pathname !== '/auth/callback' ||
+        url.searchParams.has('skip_http_redirect')
+      ) {
+        send(400, { message: 'Invalid fixture OAuth request' });
+        return;
+      }
+      const code = randomUUID();
+      oauthCodes.set(code, {
+        challenge: url.searchParams.get('code_challenge'),
+        expiresAt: Date.now() + 120000,
+      });
+      destination.searchParams.set('code', code);
+      res.writeHead(302, {
+        location: destination.toString(),
+        'cache-control': 'no-store',
+      });
+      res.end();
+    } else if (
+      path.endsWith('/token') &&
+      url.searchParams.get('grant_type') === 'pkce'
+    ) {
+      const code = oauthCodes.get(body.auth_code);
+      const challenge = createHash('sha256')
+        .update(body.code_verifier ?? '')
+        .digest('base64url');
+      if (
+        !code ||
+        code.expiresAt < Date.now() ||
+        code.challenge !== challenge
+      ) {
+        send(400, {
+          msg: 'Invalid PKCE fixture code',
+          error_code: 'invalid_grant',
+        });
+      } else {
+        oauthCodes.delete(body.auth_code);
+        send(200, session(users[0]));
+      }
+    } else if (path.endsWith('/token')) {
       const found = users.find((u) => u.email === body.email);
       if (found && body.password === 'fixturepass123')
         send(200, session(found));

@@ -68,6 +68,46 @@ Replace the two PUBLIC values in your ignored `.env` with the local URL and anon
 
 ## Supabase Auth configuration
 
+### Google sign-in and sign-up
+
+Both `/signin` and `/signup` offer **Continue with Google**. This is one Supabase OAuth flow: a first-time visitor gets a Supabase account when signup is allowed, and an existing user signs in. The native form POSTs to `/auth/google`, checks the request origin, validates the intended return path, and calls `signInWithOAuth({ provider: 'google' })` on the existing server-rendering client. The SDK stores a PKCE verifier in cookies. The server redirects only to the configured Supabase origin; Supabase handles Google consent and returns an authorization code to `/auth/callback`. `exchangeCodeForSession` establishes the Supabase cookie session before redirecting to the intended page. Protected requests still verify the user with `getUser()`.
+
+Canceled consent and failed/expired exchanges return a generic retry message without reflecting provider error details. Google does not expose profile names or emails in case responses: the existing private ownership model and Anonymous labels apply to Google accounts too. This app requests no Google API access beyond authentication and does not save Google access/refresh tokens in application tables.
+
+**Required hosted setup:**
+
+1. In [Google Auth Platform](https://console.cloud.google.com/auth/overview), select/create a project and configure Branding, Audience and the consent screen. Use basic authentication scopes: `openid`, email and profile. While the app is in Testing, add the Google accounts you will test with under Test users; publish the audience when ready for general access.
+2. Create an OAuth client of type **Web application**. Add your production origin (for example `https://YOUR_APP.vercel.app`) to Authorized JavaScript origins. Add `http://localhost:5173` and/or `http://127.0.0.1:5173` for development.
+3. Add this exact **Authorized redirect URI** in Google:
+
+   ```text
+   https://sfccsrznnxivtmcixlwd.supabase.co/auth/v1/callback
+   ```
+
+   This is Google's return address to Supabase. It is different from the app's `/auth/callback`. If you configure a custom Supabase Auth domain, use the callback shown on that project's Google provider page instead.
+
+4. In [Supabase → Authentication → Sign In / Providers → Google](https://supabase.com/dashboard/project/sfccsrznnxivtmcixlwd/auth/providers), enable Google and paste the **Client ID** and **Client Secret** from Google. Save. Keep new-user signup enabled if Google sign-up should work. Credentials belong in Supabase, not in a `PUBLIC_` variable or Vercel's app environment.
+5. In Supabase → Authentication → URL Configuration, set **Site URL** to the actual production origin. Add these Redirect URLs, replacing the production placeholder:
+
+   ```text
+   https://YOUR_APP.vercel.app/auth/callback
+   https://YOUR_APP.vercel.app/auth/callback?**
+   http://localhost:5173/auth/callback
+   http://localhost:5173/auth/callback?**
+   http://127.0.0.1:5173/auth/callback
+   http://127.0.0.1:5173/auth/callback?**
+   ```
+
+   The query pattern allows the validated `next` destination and `provider=google` marker. Add only the preview origins you intend to use. Configure `APP_ORIGIN` per the deployment instructions; it must not force production URLs onto a different preview origin.
+
+6. Deploy the updated app, then test Continue with Google from both sign-in and signup, including a signed-out visit to `/chatbot` or `/submit`. The app needs no new environment variables, packages or SQL migrations for OAuth; the existing Supabase URL and publishable key are sufficient after provider setup.
+
+For a **local Supabase stack** (rather than the supplied hosted project), additionally register `http://127.0.0.1:54321/auth/v1/callback` with Google. Enable `[auth.external.google]` in `supabase/config.toml`, set its `client_id`, and use `secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"` with that secret supplied to the Supabase CLI. Keep `skip_nonce_check = false`. This optional CLI secret is not an app environment variable. The checked-in stack keeps Google disabled until you configure credentials. See [Supabase's Google setup guide](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
+Verification uses a loopback-only OAuth fixture that checks the real SDK's PKCE challenge/verifier, one-time codes, cookie persistence and protected redirects, without contacting Google or sending emails. A real Google consent flow cannot be tested until the provider credentials are configured. On 2026-10-15, the hosted project's public `/auth/v1/settings` reported Google disabled, email enabled, signup allowed and email auto-confirm disabled; no hosted settings were changed.
+
+### Email/password and email confirmation
+
 Enable the Email provider, email/password signup, and choose whether email confirmation is required. Set **Site URL** to the actual app origin. Add redirect URLs for each development/production origin:
 
 - `http://localhost:5173/auth/callback` and `http://localhost:5173/auth/callback?next=**`
@@ -94,6 +134,15 @@ In the recovery template:
 ```
 
 Alternatively the standard `{{ .ConfirmationURL }}` template uses the PKCE `/auth/callback` route and requires the originating browser's verifier cookie. Both routes are implemented; token-hash templates avoid that same-browser limitation. Expired links give an actionable signin/reset message. Return destinations are validated as local URLs. Configure production email delivery/SMTP and Supabase Auth rate limits in the dashboard. Passwords require at least 8 characters, with Supabase's configured policy enforced in addition. Sessions refresh through SSR cookies; `getUser()` verifies authentication for every request. Only a `signedIn` boolean reaches layout data, never an email or owner ID.
+
+The app's current email flow is:
+
+1. `/signup` calls Supabase `auth.signUp` with the email, password and an `/auth/callback?next=...` redirect. Supabase manages the password, confirmation token and email delivery; this app has no separate mail server or email-verification table.
+2. With **Confirm email** enabled, Supabase returns no authenticated session. The form tells the user to check their inbox. After the valid confirmation link is opened, either the token-hash route verifies it with `verifyOtp`, or the default Supabase link returns a PKCE code that the callback exchanges for a cookie session. The user is then signed in. The sample token-hash template above always lands on `/submit`; the default `ConfirmationURL` flow preserves the original validated destination and requires the same originating browser.
+3. With **Confirm email** disabled, Supabase may return a session immediately and the app redirects directly to the intended destination. The local `supabase/config.toml` enables confirmations, and the hosted public settings checked on 2026-10-15 also require confirmation (`mailer_autoconfirm=false`).
+4. Expired, already-used or invalid links show an actionable authentication error. Supabase controls token lifetime, delivery limits and SMTP. Check Authentication → Email Templates, Email settings and SMTP in the hosted dashboard; these administrative values are not readable through the supplied publishable key.
+
+For public email signup, configure [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) in Supabase with your sender/provider credentials. The default Supabase sender is intended for testing, limits recipients to project-team addresses and has restrictive rate limits. Public settings do not reveal whether custom SMTP or the recommended email template is already configured, and no real emails were sent during verification. Google authentication is a separate provider flow and normally does not need the app's email/password confirmation link.
 
 ## Evidence lifecycle and housekeeping
 

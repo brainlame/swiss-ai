@@ -669,6 +669,28 @@ progress {
 .auth-shell form .button {
   margin-top: 24px;
 }
+.auth-shell .google-auth .button {
+  margin-top: 8px;
+}
+.auth-shell .google-auth-help {
+  margin: 10px 0 24px;
+  text-align: center;
+  font-size: 12px;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+}
 .full {
   width: 100%;
 }

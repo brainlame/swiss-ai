@@ -44,7 +44,7 @@ export async function authAction(
     if (data.session) redirect(303, next);
     return {
       message:
-        'Check your email to confirm your account, then return to sign in.',
+        'Check your email to confirm your account. Open the link to finish signing in.',
       success: true,
       email,
     };

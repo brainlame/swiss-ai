@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   let { data, form } = $props();
   let busy = $state(false),
+    googleBusy = $state(false),
     ready = $state(false);
   onMount(() => {
     ready = true;
@@ -19,6 +20,12 @@
   );
 </script>
 
+<svelte:window
+  onpageshow={() => {
+    busy = false;
+    googleBusy = false;
+  }}
+/>
 <svelte:head><title>{title} · AI Constitutions</title></svelte:head>
 <div class="auth-shell">
   <h1>{title}</h1>
@@ -30,8 +37,9 @@
       class="notice error"
       role="alert"
     >
-      This link has expired or is invalid. Sign in or request a fresh password
-      reset link.
+      {page.url.searchParams.get('authError') === 'oauth'
+        ? 'Google sign-in was canceled or could not be completed. Please try again, or use email and password.'
+        : 'This link has expired or is invalid. Sign in or request a fresh password reset link.'}
     </p>{/if}
   {#if form?.message}<p
       class:success={form.success}
@@ -40,6 +48,23 @@
     >
       {form.message}
     </p>{/if}
+  {#if data.mode === 'signin' || data.mode === 'signup'}
+    <form
+      class="google-auth"
+      method="POST"
+      action="/auth/google"
+      onsubmit={() => {
+        googleBusy = true;
+      }}
+    >
+      <input type="hidden" name="next" value={data.next} />
+      <button class="button secondary full" disabled={busy || googleBusy}
+        >{googleBusy ? 'Connecting to Google…' : 'Continue with Google'}</button
+      >
+    </form>
+    <p class="google-auth-help muted">For new and existing accounts.</p>
+    <div class="auth-divider"><span>or continue with email</span></div>
+  {/if}
   <form
     method="POST"
     data-ready={ready}
@@ -73,7 +98,7 @@
         required
       />
       <p class="helper">At least 8 characters.</p>{/if}
-    <button class="button full" disabled={busy}
+    <button class="button full" disabled={busy || googleBusy}
       >{busy
         ? 'Please wait…'
         : data.mode === 'signin'
