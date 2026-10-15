@@ -15,6 +15,18 @@ npm run dev
 
 Open the printed local URL (normally http://localhost:5173). `.env.example` includes the supplied URL and **publishable** key. Local `.env*` files are ignored. The app uses SvelteKit's validated runtime environment APIs (`src/env.ts`, `$app/env/public`, `$app/env/private`). No service credential is needed for regular case CRUD, uploads, public viewing, or authentication. Prisma is documentation/validation tooling; all app queries and Storage operations use the Supabase SDK.
 
+## Simulated chatbot
+
+The main navigation includes **Chatbot**, a signed-in page at `/chatbot`. The server load uses the existing `requireUser` gate after the Supabase cookie session has been verified with `getUser()` in the request hook. Signed-out visitors return to `/chatbot` after signing in.
+
+`src/lib/chatbot.ts` contains exactly 50 predefined response rules plus a fallback. The matcher accepts only the latest message, normalizes Unicode, case, whitespace and curly apostrophes, and requires Unicode word boundaries. Matching phrases with more whitespace-separated words take precedence; equal specificity uses the rules' declared order, regardless of where the phrase occurs in the message. Replies intentionally include helpful, incorrect, overconfident, dismissive and mixed examples. The page clearly identifies the simulation; the replies are not factual guidance or adopted policy.
+
+The typed page-local message objects have stable random IDs, roles, text, ISO timestamps and an internal matched-rule ID for assistant messages. Nothing is stored in Supabase, browser storage, cookies or URLs, or sent to a model/API or application log. Navigating away, refreshing, signing out and leaving via browser history clears the conversation. Returning starts empty. No migrations, profiles, exports or case-creation controls are added.
+
+Desktop Enter sends, Shift+Enter inserts a newline, and touch devices retain multiline Enter with a Send button. The conversation follows new messages only while near the bottom. A Visual Viewport resize handler keeps the composer within the available height when the on-screen keyboard resizes the viewport. Actual keyboard behavior still depends on the mobile browser; automated tests emulate touch and reduced viewport height rather than a physical phone keyboard.
+
+Run `npm test` for all rule, precedence and authentication unit tests. Run `npm run test:e2e -- --grep chatbot` with the isolated test database setup below for navigation, submissions, safe rendering, scrolling, mobile input, session gates and conversation lifecycle checks. Existing deployment setup applies; no new environment variables are needed.
+
 ## Database and Storage setup
 
 **An administrator must apply the migration. The publishable key cannot do this.** The authoritative migration is `supabase/migrations/20261012000000_initial.sql`; it includes tables, constraints, indexes, RLS, private ownership, restricted RPCs, a private `screenshots` bucket, Storage policies, and exactly 11 seed statements. Apply it once to a new/dedicated project, in a transaction.

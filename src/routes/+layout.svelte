@@ -87,6 +87,7 @@
           href="/submit"
           onclick={close}>Submit a Case</a
         ><a href="/cases" onclick={close}>All Cases</a>
+        <a href="/chatbot" onclick={close}>Chatbot</a>
         <div class="nav-divider"></div>
         {#if data.signedIn}<button
             class="account-button"
@@ -96,7 +97,7 @@
           >{#if account}<div id="account-menu">
               <a href="/my-cases" onclick={close}>My Cases</a>
               <form action="/signout" method="POST">
-                <button onclick={close}>Sign Out</button>
+                <button>Sign Out</button>
               </form>
             </div>{/if}{:else}<a href="/signin" onclick={close}>Sign In</a><a
             href="/signup"

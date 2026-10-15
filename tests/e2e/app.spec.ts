@@ -38,7 +38,7 @@ test('public constitutions, keyboard menu, theme persistence, and mobile layout'
   await menu.focus();
   await page.keyboard.press('Enter');
   await expect(menu).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('navigation').getByRole('link')).toHaveCount(5);
+  await expect(page.getByRole('navigation').getByRole('link')).toHaveCount(6);
   await page.keyboard.press('Escape');
   await expect(menu).toBeFocused();
   await page.screenshot({

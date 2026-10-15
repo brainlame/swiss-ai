@@ -38,11 +38,21 @@ export default defineConfig({
     },
     {
       name: 'mobile-light',
-      use: { viewport: { width: 390, height: 844 }, colorScheme: 'light' },
+      use: {
+        viewport: { width: 390, height: 844 },
+        colorScheme: 'light',
+        isMobile: true,
+        hasTouch: true,
+      },
     },
     {
       name: 'mobile-dark',
-      use: { viewport: { width: 390, height: 844 }, colorScheme: 'dark' },
+      use: {
+        viewport: { width: 390, height: 844 },
+        colorScheme: 'dark',
+        isMobile: true,
+        hasTouch: true,
+      },
     },
   ],
 });

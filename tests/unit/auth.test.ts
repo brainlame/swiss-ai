@@ -6,6 +6,7 @@ import { GET as confirm } from '../../src/routes/auth/confirm/+server';
 import { GET as callback } from '../../src/routes/auth/callback/+server';
 import { POST as save } from '../../src/routes/api/save/+server';
 import { POST as upload } from '../../src/routes/api/uploads/+server';
+import { load as chatbot } from '../../src/routes/chatbot/+page.server';
 function event(fields: Record<string, string> = {}, user: unknown = null) {
   const data = new FormData();
   for (const [k, v] of Object.entries(fields)) data.set(k, v);
@@ -47,6 +48,23 @@ describe('verified-account gates and authentication flows', () => {
     await expect(
       upload(e as Parameters<typeof upload>[0]),
     ).rejects.toMatchObject({ status: 401 });
+  });
+  it('protects the chatbot server load and returns no account or conversation data', async () => {
+    const signedOut = event();
+    signedOut.url = new URL('https://app.example/chatbot');
+    expect(() => chatbot(signedOut as Parameters<typeof chatbot>[0])).toThrow(
+      expect.objectContaining({
+        status: 303,
+        location: '/signin?next=%2Fchatbot',
+      }),
+    );
+    const signedIn = event(
+      {},
+      { id: 'fixture', email: 'private@example.test' },
+    );
+    expect(await chatbot(signedIn as Parameters<typeof chatbot>[0])).toEqual(
+      {},
+    );
   });
   it('signs in and validates return destinations', async () => {
     const e = event({
