@@ -175,9 +175,9 @@
   </form>
 {:else}
   <form class="case-form" onsubmit={submit}>
-    <section class="form-section">
+    <section class="form-section" aria-label="Evidence">
       <div class="field-body">
-        <label for="screenshots"
+        <label id="screenshots-label" for="screenshots"
           >Chatbot screenshots <span class="required" aria-hidden="true"
             >Required</span
           ></label
@@ -220,9 +220,9 @@
           </div>{/if}
       </div>
     </section>
-    <section class="form-section">
+    <section class="form-section" aria-label="Case context">
       <div class="field-body">
-        <label for="description"
+        <label id="description-label" for="description"
           >Description <span class="required" aria-hidden="true">Required</span
           ></label
         >
@@ -242,9 +242,9 @@
         ></textarea>
       </div>
     </section>
-    <section class="form-section">
+    <section class="form-section" aria-label="Suggested change">
       <div class="field-body">
-        <label for="improvement"
+        <label id="improvement-label" for="improvement"
           >Proposed constitutional improvement <span
             class="required"
             aria-hidden="true">Required</span
@@ -266,9 +266,9 @@
         ></textarea>
       </div>
     </section>
-    <section class="form-section">
+    <section class="form-section" aria-label="Principle selection">
       <div class="field-body">
-        <label for="constitution"
+        <label id="constitution-label" for="constitution"
           >Constitution being addressed <span
             class="required"
             aria-hidden="true">Required</span

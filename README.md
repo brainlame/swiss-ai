@@ -164,6 +164,34 @@ pg_ctl -D /tmp/ai-constitutions-test stop
 
 ## Production deployment
 
+### Vercel
+
+The build selects `@sveltejs/adapter-vercel` when Vercel sets `VERCEL=1`. It generates `.vercel/output/`, including server functions and static assets, using Node.js 24. The checked-in `vercel.json` selects the SvelteKit framework and build command and resets the output-directory override to the framework default.
+
+In Vercel Project Settings → Build and Deployment:
+
+1. Set **Framework Preset** to **SvelteKit**.
+2. Set **Root Directory** to the directory containing this `package.json` and `vercel.json`.
+3. Use **Build Command** `npm run build` and **Node.js Version** `24.x`.
+4. Turn **Output Directory → Override** **off**. Remove any saved `public` override; let the SvelteKit adapter supply deployment output.
+5. Add `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_PUBLISHABLE_KEY` to each environment you deploy (Production and/or Preview). Add the server-only cleanup variables when enabling scheduled cleanup. A gitignored local `.env` is not uploaded by Git deployments.
+6. Leave `APP_ORIGIN` unset for Vercel's per-deployment origin, or set it to the exact canonical deployment origin for that environment. Add your production URL and allowed preview callback URLs to Supabase Auth's redirect allow list as described above.
+7. Redeploy after changing settings or environment variables. Existing deployments do not pick up those changes.
+
+The error **No Output Directory named "public" found** means Vercel expected static output in `public/`. This app needs a SvelteKit server adapter for authentication, server-rendered pages and API routes. The original standalone Node adapter generated `dist/`, which does not match that static configuration. Creating an empty `public/` folder would hide the configuration problem without deploying the server.
+
+To verify Vercel output locally without deploying:
+
+```sh
+VERCEL=1 npm run build
+```
+
+This validates packaging, but does not deploy or check your remote Vercel settings. See the [SvelteKit Vercel adapter documentation](https://svelte.dev/docs/kit/adapter-vercel) and [Vercel build settings](https://vercel.com/docs/builds/configure-a-build).
+
+Vercel Functions have a [4.5 MB request-body limit](https://vercel.com/docs/functions/limitations#request-body-size). The current screenshot endpoint proxies each image through the server, so larger images will be rejected by Vercel before reaching application validation. The full 10 MB upload allowance requires a Node host with the request limits below, or a future change to direct-to-Supabase uploads. `BODY_SIZE_LIMIT` cannot raise Vercel's platform limit.
+
+### Standalone Node host
+
 Deploy the generated adapter-node app in `dist/` on a Node host. Precompression is disabled; the host or reverse proxy can compress responses. Build and run:
 
 ```sh

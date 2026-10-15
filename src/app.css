@@ -14,6 +14,12 @@
   --line: #dce3eb;
   --error: #a12b34;
   --success: #216d51;
+  --hero-bg: #edf3fa;
+  --hero-grid: #d4e0ee;
+  --hero-paper: #ffffff;
+  --hero-ink: #9aacc1;
+  --field-bg: #fafcfe;
+  --panel-shadow: 0 4px 20px #213a5b06;
   color: var(--text);
   background: var(--bg);
 }
@@ -31,6 +37,12 @@
   --line: #2c3746;
   --error: #ffadb4;
   --success: #92d9b5;
+  --hero-bg: #132238;
+  --hero-grid: #253c59;
+  --hero-paper: #1c2d44;
+  --hero-ink: #7189a8;
+  --field-bg: #0e151f;
+  --panel-shadow: 0 4px 20px #00000010;
 }
 * {
   box-sizing: border-box;
@@ -145,8 +157,8 @@ header {
   font-size: 20px;
 }
 .theme-button {
-  padding: 0 12px;
-  font-size: 13px;
+  width: 44px;
+  padding: 0;
 }
 nav {
   position: absolute;
@@ -214,19 +226,87 @@ main:focus {
   outline: none;
 }
 .hero {
-  padding: 56px 0 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  margin: 32px 0 44px;
+  padding: 48px;
+  background: var(--hero-bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+.hero h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(36px, 4vw, 49px);
+  line-height: 1.12;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  margin-bottom: 22px;
 }
 .hero-copy {
-  max-width: 670px;
-  font-size: 18px;
+  max-width: 450px;
+  font-size: 17px;
   color: var(--muted);
-  margin: 0 0 24px;
+  margin: 0 0 28px;
 }
 .hero-actions {
   display: flex;
   align-items: center;
   gap: 24px;
   flex-wrap: wrap;
+}
+.hero-art {
+  min-width: 0;
+}
+.hero-draft {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  margin: auto;
+}
+.draft-guide {
+  stroke: var(--hero-grid);
+  stroke-width: 0.7;
+  opacity: 0.65;
+}
+.draft-orbit {
+  stroke: var(--accent);
+  stroke-width: 0.8;
+  opacity: 0.18;
+}
+.draft-shadow {
+  fill: var(--accent);
+  opacity: 0.07;
+}
+.draft-paper {
+  fill: var(--hero-paper);
+  stroke: var(--hero-grid);
+}
+.draft-margin {
+  stroke: var(--hero-grid);
+}
+.draft-heading {
+  stroke: var(--text);
+  stroke-width: 3;
+  opacity: 0.65;
+}
+.draft-line {
+  stroke: var(--hero-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.draft-edit,
+.draft-annotation {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .button {
   background: var(--button-bg);
@@ -303,8 +383,9 @@ main:focus {
 .constitution-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 24px;
+  box-shadow: var(--panel-shadow);
   display: flex;
   flex-direction: column;
 }
@@ -369,13 +450,39 @@ footer {
   line-height: 1.6;
 }
 .case-form {
-  padding-top: 8px;
+  padding-top: 4px;
+}
+.form-page-heading {
+  padding-top: 48px;
+  padding-bottom: 28px;
+}
+.form-page-heading h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 40px;
+  font-weight: 400;
 }
 .form-section {
-  margin-bottom: 30px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow);
 }
+.form-section label {
+  font-size: 18px;
+  letter-spacing: -0.015em;
+}
+.form-section textarea,
+.form-section select {
+  background: var(--field-bg);
+  border-radius: 7px;
+}
+.form-section textarea:focus,
+.form-section select:focus {
+  border-color: var(--accent);
+}
+
 .field-body {
   min-width: 0;
 }
@@ -424,9 +531,23 @@ textarea::placeholder {
   line-height: 1.65;
 }
 .upload-area {
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 18px;
+  border: 1px dashed var(--hero-ink);
+  border-radius: 8px;
+  padding: 22px;
+  background: var(--field-bg);
+}
+.upload-area input {
+  background: var(--surface);
+}
+.upload-area input::file-selector-button {
+  font: inherit;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-right: 12px;
+  cursor: pointer;
 }
 .upload-area .muted {
   font-size: 14px;
@@ -474,6 +595,7 @@ textarea::placeholder {
 }
 .selected-constitution {
   border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
   padding: 18px;
   margin-top: 16px;
   background: var(--subtle);
@@ -493,7 +615,10 @@ textarea::placeholder {
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  padding-top: 4px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  background: var(--subtle);
+  border-radius: 12px;
 }
 .form-footer p {
   font-size: 13px;
@@ -851,10 +976,6 @@ dialog::backdrop {
   .header-actions {
     gap: 8px;
   }
-  .theme-button {
-    font-size: 12px;
-    padding: 0 9px;
-  }
   nav {
     right: 20px;
     top: 66px;
@@ -866,8 +987,40 @@ dialog::backdrop {
     font-size: 30px;
   }
   .hero {
-    padding: 36px 0 30px;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 24px 0 32px;
+    padding: 28px 24px 12px;
+    border-radius: 12px;
   }
+  .hero h1 {
+    font-size: 37px;
+  }
+  .hero-art {
+    height: 170px;
+    overflow: hidden;
+  }
+  .hero-draft {
+    width: 220px;
+    transform: rotate(5deg);
+  }
+  .form-page-heading {
+    padding-top: 32px;
+  }
+  .form-page-heading h1 {
+    font-size: 34px;
+  }
+  .form-section {
+    padding: 22px 18px;
+    border-radius: 10px;
+  }
+  .form-section label {
+    font-size: 17px;
+  }
+  .form-footer {
+    padding: 20px;
+  }
+
   .hero-copy {
     font-size: 16px;
   }

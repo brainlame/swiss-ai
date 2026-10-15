@@ -50,8 +50,28 @@
         onclick={theme}
         aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
         title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >{dark ? 'Light mode' : 'Dark mode'}</button
-      ><button
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          {#if dark}
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+            />
+          {:else}
+            <path d="M20.9 13.3A9 9 0 0 1 10.7 3.1a9 9 0 1 0 10.2 10.2Z" />
+          {/if}
+        </svg>
+      </button><button
         bind:this={menuButton}
         disabled={!ready}
         class="icon-button"
