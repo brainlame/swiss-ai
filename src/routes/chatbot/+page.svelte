@@ -3,7 +3,10 @@
   import { beforeNavigate, goto } from '$app/navigation';
   import { selectReply, type ChatMessage } from '#lib/chatbot.js';
   import { chatbotHints } from '#lib/chatbot-hints.js';
-  import { attachExchange, clearExchange } from '#lib/chat-evidence.js';
+  import { attachConversation, clearConversation } from '#lib/chat-evidence.js';
+
+  import { page } from '$app/state';
+  import { validateTranscript } from '#lib/validation.js';
 
   let messages = $state<ChatMessage[]>([]);
   let draft = $state('');
@@ -19,20 +22,24 @@
   let openingCase = $state(false);
   let caseError = $state('');
 
-  async function createCase(index: number) {
-    if (openingCase) return;
-    const response = messages[index];
-    const prompt = messages[index - 1];
-    if (response?.role !== 'assistant' || prompt?.role !== 'user') return;
-    openingCase = true;
+  async function createCase() {
+    if (openingCase || sending || !messages.length) return;
     caseError = '';
-    attachExchange({ prompt: prompt.text, response: response.text });
+    try {
+      validateTranscript(messages.map(({ role, text }) => ({ role, text })));
+    } catch (e) {
+      caseError = (e as Error).message;
+      return;
+    }
+    openingCase = true;
+    // Freeze every message before beforeNavigate clears the active conversation.
+    attachConversation(messages);
     try {
       await goto('/submit?source=chatbot');
     } catch {
       caseError = 'The case form could not be opened. Please try again.';
     } finally {
-      clearExchange();
+      clearConversation();
       openingCase = false;
     }
   }
@@ -80,7 +87,10 @@
         document.querySelector('header')?.getBoundingClientRect().height ?? 80;
       viewportHeight = Math.max(
         0,
-        (viewport?.height ?? window.innerHeight) - headerHeight,
+        (viewport?.height ?? window.innerHeight) -
+          headerHeight -
+          (document.querySelector('.bottom-tabs')?.getBoundingClientRect()
+            .height ?? 76),
       );
       void tick().then(scrollToLatest);
     };
@@ -97,7 +107,18 @@
   async function send(event: SubmitEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (!ready || !active || sending || !text) return;
+    if (!ready || !active || sending || !text || openingCase) return;
+    if (
+      messages.length >= 100 ||
+      messages.reduce((n, m) => n + m.text.length, 0) +
+        text.length +
+        selectReply(text).text.length >
+        100000
+    ) {
+      caseError =
+        'Conversation limit reached. Submit this conversation as a case, or leave and return to start fresh.';
+      return;
+    }
     sending = true;
     messages = [
       ...messages,
@@ -165,11 +186,24 @@
         disabled={!ready}
         onclick={() => hintsDialog.showModal()}>Hints</button
       >
+      <button
+        class="button submit-conversation"
+        disabled={!ready || !messages.length || sending || openingCase}
+        onclick={createCase}
+        >{openingCase ? 'Opening…' : 'Submit a case'}</button
+      >
     </div>
+    {#if page.url.searchParams.get('evidence') === 'missing'}<p
+        class="notice"
+        role="status"
+      >
+        The submission snapshot is no longer available. Start a conversation,
+        then choose “Submit a case” to attach it.
+      </p>{/if}
     <p id="chatbot-introduction">
       A simulated chatbot with predefined replies. Some replies are
       intentionally flawed. Your conversation disappears when you leave this
-      page.
+      page. Use “Submit a case” to capture all messages before leaving.
     </p>
   </div>
 
@@ -203,12 +237,6 @@
         >
           <h2>{message.role === 'user' ? 'You' : 'Chatbot'}</h2>
           <p>{message.text}</p>
-          {#if message.role === 'assistant'}<button
-              type="button"
-              class="create-case-link"
-              disabled={openingCase}
-              onclick={() => createCase(index)}>Create a case</button
-            >{/if}
         </article>
       {/each}
     </div>

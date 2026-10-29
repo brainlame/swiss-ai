@@ -1,12 +1,19 @@
 <script lang="ts">
+  import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
+  import { page } from '$app/state';
+  import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
-  import { date } from '#lib/types.js';
+  import { evidenceFor } from '#lib/chat-evidence.js';
+  import { date, behaviorLabel } from '#lib/types.js';
   import ChatEvidence from '#lib/components/ChatEvidence.svelte';
   let { data, form } = $props();
   let confirmDialog: HTMLDialogElement;
   let imageDialog: HTMLDialogElement;
+  let ready = $state(false);
+  onMount(() => (ready = true));
   let selected = $state(0),
     deleting = $state(false);
+  const transcript = $derived(evidenceFor(data.item));
   const constitution = $derived(
     data.constitutions.find((c) => c.number === data.item.constitution_number),
   );
@@ -23,7 +30,9 @@
 >
 <div class="detail-layout">
   <div class="detail-main">
-    <a class="back-link" href="/cases"> All Cases</a>
+    <a class="back-link" href="/cases" data-sveltekit-preload-data="off">
+      All Cases</a
+    >
     <div class="detail-top">
       <span class="pill">Constitution #{data.item.constitution_number}</span
       ><span class="muted"
@@ -33,12 +42,10 @@
       >
     </div>
     <h1>Case details</h1>
-    {#if data.item.chat_prompt && data.item.chat_response}<ChatEvidence
-        exchange={{
-          prompt: data.item.chat_prompt,
-          response: data.item.chat_response,
-        }}
-      />{/if}
+    <p class="behavior-label" class:good={data.item.behavior === 'good'}>
+      {behaviorLabel(data.item.behavior)}
+    </p>
+    {#if transcript}<ChatEvidence {transcript} />{/if}
     {#if data.item.version > 2}<p class="helper">
         Updated {date(data.item.updated_at)}
       </p>{/if}
@@ -67,6 +74,7 @@
         <div class="evidence-grid">
           {#each data.item.screenshots as screenshot, i}<button
               class="evidence-button"
+              disabled={!ready}
               onclick={() => enlarge(i)}
               aria-label={'Enlarge screenshot ' + (i + 1)}
               ><img
@@ -76,11 +84,23 @@
             >{/each}
         </div>
       </section>{/if}
+    {#if data.item.status === 'published'}<section
+        class="detail-discussion-section"
+        aria-labelledby="discussion-title"
+      >
+        <h2 id="discussion-title">Community discussion</h2>
+        {#key data.item.id}<CaseDiscussion
+            caseId={data.item.id}
+            initial={data.discussion}
+            signedIn={!!page.data.signedIn}
+          />{/key}
+      </section>{/if}
     {#if data.owns}<div class="owner-actions">
         <a class="button secondary" href={'/cases/' + data.item.id + '/edit'}
           >Edit case</a
         ><button
           class="text-button danger-text"
+          disabled={!ready}
           onclick={() => confirmDialog.showModal()}>Delete case</button
         >
       </div>{/if}
@@ -128,7 +148,7 @@
 >
   <h2 id="delete-heading">Delete this case?</h2>
   <p>
-    This removes your case and all its screenshots. This action cannot be
+    This removes your case and all its attached evidence. This action cannot be
     undone.
   </p>
   <form

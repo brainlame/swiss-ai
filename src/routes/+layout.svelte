@@ -1,13 +1,31 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
-  import { navigating } from '$app/state';
+  import { navigating, page } from '$app/state';
+  import { afterNavigate } from '$app/navigation';
   let { data, children } = $props();
-  let menu = $state(false),
-    account = $state(false),
+  let account = $state(false),
     dark = $state(false),
     ready = $state(false);
-  let menuButton: HTMLButtonElement;
+  let accountButton = $state<HTMLButtonElement>();
+  const tabs = [
+    {
+      href: '/',
+      label: 'Home',
+      path: 'M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
+    },
+    {
+      href: '/chatbot',
+      label: 'Chatbot',
+      path: 'M4 4h16v12H8l-4 4V4Zm4 5h8m-8 3h5',
+    },
+    {
+      href: '/cases',
+      label: 'All Cases',
+      path: 'M5 3h14v18H5V3Zm4 5h6m-6 4h6m-6 4h4',
+    },
+  ];
+  afterNavigate(() => (account = false));
   onMount(() => {
     ready = true;
     dark = document.documentElement.dataset.theme === 'dark';
@@ -27,18 +45,18 @@
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }
   function close() {
-    menu = false;
     account = false;
-  }
-  function keydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && menu) {
-      close();
-      menuButton?.focus();
-    }
   }
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && account) {
+      close();
+      accountButton?.focus();
+    }
+  }}
+/>
 <a class="skip" href="#main">Skip to content</a>
 <header>
   <div class="header-inner">
@@ -71,39 +89,25 @@
             <path d="M20.9 13.3A9 9 0 0 1 10.7 3.1a9 9 0 1 0 10.2 10.2Z" />
           {/if}
         </svg>
-      </button><button
-        bind:this={menuButton}
-        disabled={!ready}
-        class="icon-button"
-        aria-expanded={menu}
-        aria-controls="navigation"
-        aria-label={menu ? 'Close navigation' : 'Open navigation'}
-        onclick={() => (menu = !menu)}
-        ><span aria-hidden="true">{menu ? '✕' : '☰'}</span></button
-      >
+      </button>
+      {#if data.signedIn}
+        <button
+          bind:this={accountButton}
+          class="account-button"
+          disabled={!ready}
+          aria-expanded={account}
+          aria-controls="account-menu"
+          onclick={() => (account = !account)}>Account</button
+        >
+      {:else}<a class="account-button" href="/signin">Sign in</a>{/if}
     </div>
-    {#if menu}<nav id="navigation" aria-label="Main navigation">
-        <a href="/" onclick={close}>Constitutions</a><a
-          href="/submit"
-          onclick={close}>Submit a Case</a
-        ><a href="/cases" onclick={close}>All Cases</a>
-        <a href="/chatbot" onclick={close}>Chatbot</a>
-        <div class="nav-divider"></div>
-        {#if data.signedIn}<button
-            class="account-button"
-            aria-expanded={account}
-            aria-controls="account-menu"
-            onclick={() => (account = !account)}>Your account</button
-          >{#if account}<div id="account-menu">
-              <a href="/my-cases" onclick={close}>My Cases</a>
-              <form action="/signout" method="POST">
-                <button>Sign Out</button>
-              </form>
-            </div>{/if}{:else}<a href="/signin" onclick={close}>Sign In</a><a
-            href="/signup"
-            onclick={close}>Create account</a
-          >{/if}
-      </nav>{/if}
+    {#if account && data.signedIn}<div
+        id="account-menu"
+        class="account-popover"
+      >
+        <a href="/my-cases" onclick={close}>My Cases</a>
+        <form action="/signout" method="POST"><button>Sign Out</button></form>
+      </div>{/if}
   </div>
 </header>
 {#if navigating.to}<div
@@ -113,6 +117,39 @@
   ></div>{/if}
 <main id="main" tabindex="-1">{@render children()}</main>
 <footer>
-  <a class="footer-brand" href="/">AI Constitutions</a>
-  <span>Sample principles, open for discussion.</span>
+  <a class="footer-brand" href="/">AI Constitutions</a><span
+    >Sample principles, open for discussion.</span
+  >
 </footer>
+<nav class="bottom-tabs" aria-label="Main navigation">
+  <div class="bottom-tabs-inner">
+    {#each tabs as tab}
+      {@const active =
+        tab.href === '/'
+          ? page.url.pathname === '/'
+          : tab.href === '/chatbot'
+            ? page.url.pathname === '/chatbot' ||
+              page.url.pathname === '/submit'
+            : page.url.pathname.startsWith('/cases')}
+      <a
+        href={tab.href}
+        data-sveltekit-preload-data={tab.href === '/cases' ? 'off' : undefined}
+        aria-current={active ? 'page' : undefined}
+        onclick={close}
+      >
+        <svg
+          width="23"
+          height="23"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"><path d={tab.path} /></svg
+        >
+        <span>{tab.label}</span>
+      </a>
+    {/each}
+  </div>
+</nav>

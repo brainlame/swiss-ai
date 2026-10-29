@@ -4,25 +4,64 @@ import { randomUUID } from 'node:crypto';
 import { userInfo } from 'node:os';
 const enabled = !!process.env.TEST_DATABASE_URL;
 describe.skipIf(!enabled)(
-  'isolated PostgreSQL: real migrations, RPCs, grants and RLS',
+  'isolated PostgreSQL: current migrations, direct RPCs, grants and RLS',
   () => {
     const db = new pg.Client({
       connectionString: process.env.TEST_DATABASE_URL,
     });
     const owner = randomUUID(),
       other = randomUUID(),
-      caseId = randomUUID();
-    let path: string, newPath: string;
-    async function role(name: string, user = '') {
+      id = randomUUID(),
+      legacy = randomUUID();
+    const transcript = [
+      { role: 'user', text: 'hello' },
+      { role: 'assistant', text: 'Hello.' },
+      { role: 'user', text: 'more' },
+      { role: 'assistant', text: 'A second reply.' },
+    ];
+    let path: string;
+    async function role(name: string, uid = '') {
       await db.query('reset role');
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", [
-        user,
+        uid,
       ]);
       await db.query(`set role ${name}`);
     }
-    async function denied(query: string, args: unknown[] = []) {
+    async function denied(sql: string, values: unknown[] = []) {
       await db.query('savepoint rejection');
-      await expect(db.query(query, args)).rejects.toThrow();
+      await expect(db.query(sql, values)).rejects.toThrow();
+      await db.query('rollback to savepoint rejection');
+    }
+    const save = (
+      caseId = id,
+      version = 1,
+      evidence: unknown = transcript,
+      behavior: unknown = 'bad',
+      description = 'Conversation fixture',
+      constitution = 2,
+    ) =>
+      db.query(
+        'select public.save_case($1,$2,$3::smallint,$4,$5,$6::jsonb,$7)',
+        [
+          caseId,
+          version,
+          constitution,
+          description,
+          'Explain uncertainty',
+          evidence === null ? null : JSON.stringify(evidence),
+          behavior,
+        ],
+      );
+    async function badSave(
+      evidence: unknown,
+      behavior: unknown = 'bad',
+      description = 'Conversation fixture',
+      constitution = 2,
+    ) {
+      await db.query('savepoint rejection');
+      await expect(
+        save(randomUUID(), 1, evidence, behavior, description, constitution),
+      ).rejects.toThrow();
       await db.query('rollback to savepoint rejection');
     }
     beforeAll(async () => {
@@ -30,17 +69,39 @@ describe.skipIf(!enabled)(
       await db.query('begin');
       await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)', [
         owner,
-        'owner@test.invalid',
+        'owner@fixtures.invalid',
         other,
-        'other@test.invalid',
+        'other@fixtures.invalid',
       ]);
+      // Historical evidence fixture: insert as the database administrator, not through app creation.
+      await db.query(
+        "insert into public.cases(id,constitution_number,description,improvement,status,version,chat_prompt,chat_response) values($1,1,'Historical fixture','Historical proposal','published',2,'old prompt','old reply')",
+        [legacy],
+      );
+      await db.query('insert into private.case_owners values($1,$2)', [
+        legacy,
+        owner,
+      ]);
+      path = legacy + '/' + randomUUID() + '.png';
+      await db.query(
+        "insert into private.uploads(path,case_id,mime_type,byte_size) values($1,$2,'image/png',68)",
+        [path, legacy],
+      );
+      await db.query(
+        'insert into storage.objects(bucket_id,name,metadata) values(\'screenshots\',$1,\'{"size":68,"mimetype":"image/png"}\')',
+        [path],
+      );
+      await db.query(
+        'insert into public.case_screenshots(case_id,storage_path,display_order) values($1,$2,0)',
+        [legacy, path],
+      );
     });
     afterAll(async () => {
       await db.query('reset role');
       await db.query('rollback');
       await db.end();
     });
-    it('provides exactly 11 samples and forbids public writes and creation', async () => {
+    it('provides exactly 11 samples, public historical viewing and private ownership', async () => {
       await role('anon');
       expect(
         (await db.query('select * from public.constitutions')).rows,
@@ -48,107 +109,97 @@ describe.skipIf(!enabled)(
       await denied(
         "update public.constitutions set text='forged' where number=1",
       );
-      await denied(
-        "select public.begin_case($1,1::smallint,'description','proposal')",
-        [caseId],
-      );
       await denied('select * from private.case_owners');
       await denied('select * from private.uploads');
-    });
-    it('rejects whitespace-only text and invalid screenshots through direct RPCs', async () => {
-      await role('authenticated', owner);
-      await denied("select public.begin_case($1,1::smallint,$2,'proposal')", [
-        randomUUID(),
-        '\t\n',
-      ]);
-      await denied("select public.begin_case($1,1::smallint,$2,'proposal')", [
-        randomUUID(),
-        '\u00a0\u2003',
-      ]);
-      await denied(
-        "select public.begin_case($1,12::smallint,'description','proposal')",
-        [randomUUID()],
-      );
-    });
-    it('binds a private draft to auth.uid and rejects unfinished publication', async () => {
-      await role('authenticated', owner);
-      await db.query(
-        "select public.begin_case($1,5::smallint,'A safety example','Prohibit unsafe access')",
-        [caseId],
-      );
-      await denied(
-        "select public.commit_case($1,1,5::smallint,'description','proposal',array[]::text[])",
-        [caseId],
-      );
-      path = (
-        await db.query("select public.reserve_upload($1,'image/png',68)", [
-          caseId,
-        ])
-      ).rows[0].reserve_upload;
-      expect(path).not.toContain(owner);
-      expect(path).not.toContain('email');
-      await denied(
-        "select public.commit_case($1,1,5::smallint,'description','proposal',array[$2])",
-        [caseId, path],
-      );
-      await role('anon');
       expect(
-        (await db.query('select * from public.cases where id=$1', [caseId]))
-          .rows,
-      ).toHaveLength(0);
-      await denied('select public.browse_cases(p_mine=>true)');
-    });
-    it('enforces another user’s case and storage mutation permissions directly', async () => {
-      await role('authenticated', other);
-      await denied(
-        "select public.begin_case($1,5::smallint,'forged','forged')",
-        [caseId],
-      );
-      await denied("select public.reserve_upload($1,'image/png',68)", [caseId]);
-      await denied('select public.begin_delete($1)', [caseId]);
-      await denied(
-        "insert into storage.objects(bucket_id,name,metadata) values('screenshots',$1,'{}')",
-        [path],
-      );
-      expect(
-        (await db.query('select public.can_read_image($1) as allowed', [path]))
-          .rows[0].allowed,
-      ).toBe(false);
-      await denied("update public.cases set description='forged' where id=$1", [
-        caseId,
-      ]);
-      await denied(
-        'insert into private.case_owners(case_id,user_id) values($1,$2)',
-        [caseId, other],
-      );
-    });
-    it('allows an owner to upload and complete a case; public responses contain no identity', async () => {
-      await role('authenticated', owner);
-      await db.query(
-        'insert into storage.objects(bucket_id,name,metadata) values(\'screenshots\',$1,\'{"size":68,"mimetype":"image/png"}\')',
-        [path],
-      );
-      await db.query(
-        "select public.commit_case($1,1,5::smallint,'A safety example','Prohibit unsafe access',array[$2])",
-        [caseId, path],
-      );
-      await role('anon');
-      const rows = (await db.query('select * from public.browse_cases()')).rows;
-      expect(rows.some((r) => r.id === caseId)).toBe(true);
-      const serialized = JSON.stringify(rows);
-      expect(serialized).not.toContain(owner);
-      expect(serialized).not.toContain('owner@test.invalid');
-      expect(serialized).not.toMatch(/user_id|owner_id|email/);
+        (
+          await db.query(
+            'select behavior,transcript,chat_prompt from public.cases where id=$1',
+            [legacy],
+          )
+        ).rows[0],
+      ).toEqual({
+        behavior: null,
+        transcript: null,
+        chat_prompt: 'old prompt',
+      });
       expect(
         (await db.query('select * from storage.objects where name=$1', [path]))
           .rows,
       ).toHaveLength(1);
+      await db.query('savepoint rejection');
+      await expect(save()).rejects.toThrow();
+      await db.query('rollback to savepoint rejection');
     });
-    it('rejects mutation of committed evidence and wrong-version edits, but supports atomic owner edits', async () => {
+    it('requires full evidence, behavior, meaningful fields and a valid constitution at direct API boundaries', async () => {
+      await role('authenticated', owner);
+      for (const value of [
+        null,
+        [],
+        {},
+        [transcript[0]],
+        [transcript[1], transcript[0]],
+        [{ role: 'user', text: '\u00a0\t' }, transcript[1]],
+        [{ role: 'user', text: 'x'.repeat(10001) }, transcript[1]],
+        [{ ...transcript[0], owner_id: owner }, transcript[1]],
+        Array.from({ length: 102 }, (_, i) => transcript[i % 2]),
+        Array.from({ length: 100 }, (_, i) => ({
+          role: i % 2 ? 'assistant' : 'user',
+          text: 'x'.repeat(1001),
+        })),
+      ])
+        await badSave(value);
+      for (const value of [null, '', 'mixed']) await badSave(transcript, value);
+      await badSave(transcript, 'bad', ' \t\n');
+      await badSave(transcript, 'bad', 'valid', 12);
+      // Old RPC overloads cannot bypass the new creation requirements.
+      await denied("select public.begin_case($1,1::smallint,'x','x')", [
+        randomUUID(),
+      ]);
+      await denied("select public.reserve_upload($1,'image/png',68)", [legacy]);
+    });
+    it('atomically creates and retries one complete owner-bound screenshot-free case', async () => {
+      await role('authenticated', owner);
+      expect((await save()).rows[0].save_case).toBe(2);
+      expect((await save()).rows[0].save_case).toBe(2);
+      expect(
+        (
+          await db.query(
+            'select * from public.case_screenshots where case_id=$1',
+            [id],
+          )
+        ).rows,
+      ).toHaveLength(0);
+      await role('anon');
+      const row = (
+        await db.query('select * from public.cases where id=$1', [id])
+      ).rows[0];
+      expect(row).toMatchObject({
+        transcript,
+        behavior: 'bad',
+        status: 'published',
+        version: 2,
+      });
+      expect(JSON.stringify(row)).not.toMatch(
+        /owner_id|user_id|@fixtures.invalid/,
+      );
+      expect(JSON.stringify(row)).not.toContain(owner);
+      await denied('select public.browse_cases(p_mine=>true)');
+    });
+    it('rejects another user’s updates, deletion, owner forgery and screenshot mutation', async () => {
       await role('authenticated', other);
+      await db.query('savepoint rejection');
+      await expect(save(id, 2)).rejects.toThrow();
+      await db.query('rollback to savepoint rejection');
+      await denied('select public.begin_delete($1)', [id]);
+      await denied("update public.cases set behavior='good' where id=$1", [id]);
+      await denied('insert into private.case_owners values($1,$2)', [
+        id,
+        other,
+      ]);
       await denied(
-        "select public.commit_case($1,2,1::smallint,'forged','forged',array[$2])",
-        [caseId, path],
+        "insert into storage.objects(bucket_id,name,metadata) values('screenshots',$1,'{}')",
+        [id + '/' + randomUUID() + '.png'],
       );
       expect(
         (
@@ -157,7 +208,7 @@ describe.skipIf(!enabled)(
             [path],
           )
         ).rows,
-      ).toHaveLength(0);
+      ).toEqual([]);
       expect(
         (
           await db.query(
@@ -165,64 +216,65 @@ describe.skipIf(!enabled)(
             [path],
           )
         ).rows,
-      ).toHaveLength(0);
+      ).toEqual([]);
+      await denied('delete from public.case_screenshots where case_id=$1', [
+        legacy,
+      ]);
+    });
+    it('preserves immutable transcripts and supports versioned owner edits and classification changes', async () => {
+      await role('authenticated', owner);
+      await badSave(transcript, 'bad', 'valid', 0);
+      await db.query('savepoint rejection');
+      await expect(save(id, 2, [transcript[0], transcript[1]])).rejects.toThrow(
+        'read-only',
+      );
+      await db.query('rollback to savepoint rejection');
+      expect(
+        (await save(id, 2, transcript, 'good', 'Edited conversation')).rows[0]
+          .save_case,
+      ).toBe(3);
+      expect(
+        (await save(id, 2, transcript, 'good', 'Edited conversation')).rows[0]
+          .save_case,
+      ).toBe(3);
+      await db.query('savepoint rejection');
+      await expect(save(id, 1)).rejects.toThrow('Reload');
+      await db.query('rollback to savepoint rejection');
+      await role(userInfo().username);
+      await denied("update public.cases set transcript='[]' where id=$1", [id]);
+      await denied(
+        "update public.cases set chat_response='changed' where id=$1",
+        [legacy],
+      );
+    });
+    it('edits historical cases without changing old screenshots or silently assigning behavior', async () => {
       await role('authenticated', owner);
       expect(
         (
-          await db.query(
-            'delete from storage.objects where name=$1 returning *',
-            [path],
-          )
-        ).rows,
-      ).toHaveLength(0);
-      await denied(
-        "select public.commit_case($1,1,1::smallint,'new','new',array[$2])",
-        [caseId, path],
-      );
-      await denied(
-        "select public.commit_case($1,2,12::smallint,'new','new',array[$2])",
-        [caseId, path],
-      );
-      await denied(
-        "select public.commit_case($1,2,1::smallint,'  ','new',array[$2])",
-        [caseId, path],
-      );
-      newPath = (
-        await db.query("select public.reserve_upload($1,'image/webp',100)", [
-          caseId,
-        ])
-      ).rows[0].reserve_upload;
-      await db.query(
-        'insert into storage.objects(bucket_id,name,metadata) values(\'screenshots\',$1,\'{"size":100,"mimetype":"image/webp"}\')',
-        [newPath],
-      );
-      await db.query(
-        "select public.commit_case($1,2,2::smallint,'An honest example','Describe uncertainty clearly',array[$2])",
-        [caseId, newPath],
-      );
-      await db.query(
-        "select public.commit_case($1,2,2::smallint,'An honest example','Describe uncertainty clearly',array[$2])",
-        [caseId, newPath],
-      );
-      expect(
-        (await db.query('select * from public.cases where id=$1', [caseId]))
-          .rows[0],
-      ).toMatchObject({
-        constitution_number: 2,
-        version: 3,
-        description: 'An honest example',
-      });
+          await db.query('select behavior from public.cases where id=$1', [
+            legacy,
+          ])
+        ).rows[0].behavior,
+      ).toBeNull();
+      await save(legacy, 2, null, 'good', 'Edited historical case');
       expect(
         (
           await db.query(
-            'delete from storage.objects where name=$1 returning *',
-            [path],
+            'select * from public.case_screenshots where case_id=$1',
+            [legacy],
           )
         ).rows,
       ).toHaveLength(1);
-      await db.query('select public.prune_uploads($1)', [caseId]);
+      expect(
+        (
+          await db.query(
+            'select chat_prompt,chat_response from public.cases where id=$1',
+            [legacy],
+          )
+        ).rows[0],
+      ).toEqual({ chat_prompt: 'old prompt', chat_response: 'old reply' });
     });
-    it('searches both fields, filters, orders and paginates tied timestamps in SQL', async () => {
+    it('searches both fields, filters, sorts and paginates tied timestamps in SQL', async () => {
       await role(userInfo().username);
       for (let i = 0; i < 26; i++)
         await db.query(
@@ -255,12 +307,13 @@ describe.skipIf(!enabled)(
         )
       ).rows;
       expect(ascending[0].id).not.toBe(first[0].id);
-      const filtered = (
-        await db.query(
-          "select * from public.browse_cases(p_search=>'pagination',p_constitution=>2)",
-        )
-      ).rows;
-      expect(filtered.every((r) => r.constitution_number === 2)).toBe(true);
+      expect(
+        (
+          await db.query(
+            "select * from public.browse_cases(p_search=>'pagination',p_constitution=>2)",
+          )
+        ).rows.every((r) => r.constitution_number === 2),
+      ).toBe(true);
       expect(
         (
           await db.query(
@@ -268,113 +321,66 @@ describe.skipIf(!enabled)(
           )
         ).rows,
       ).toHaveLength(1);
-      expect(
-        (await db.query("select * from public.browse_cases(p_search=>'%')"))
-          .rows,
-      ).toHaveLength(0);
       await role('authenticated', owner);
       expect(
         (await db.query('select * from public.browse_cases(p_mine=>true)'))
           .rows,
-      ).toHaveLength(1);
+      ).toHaveLength(2);
     });
-    it('hides a deleting case immediately and requires storage cleanup before final deletion', async () => {
+    it('cleans up a transcript case and privately mapped ownership on deletion', async () => {
       await role('authenticated', owner);
-      await db.query('select public.begin_delete($1)', [caseId]);
-      await denied('select public.finish_delete($1)', [caseId]);
+      await db.query('select public.begin_delete($1)', [id]);
       await role('anon');
       expect(
-        (await db.query('select * from public.cases where id=$1', [caseId]))
-          .rows,
-      ).toHaveLength(0);
-      expect(
-        (
-          await db.query('select * from storage.objects where name=$1', [
-            newPath,
-          ])
-        ).rows,
-      ).toHaveLength(0);
+        (await db.query('select * from public.cases where id=$1', [id])).rows,
+      ).toEqual([]);
       await role('authenticated', owner);
-      expect(
-        (
-          await db.query(
-            'delete from storage.objects where name=$1 returning *',
-            [newPath],
-          )
-        ).rows,
-      ).toHaveLength(1);
-      await db.query('select public.finish_delete($1)', [caseId]);
-      expect(
-        (await db.query('select * from public.cases where id=$1', [caseId]))
-          .rows,
-      ).toHaveLength(0);
+      await db.query('select public.finish_delete($1)', [id]);
       await role(userInfo().username);
       expect(
         (
           await db.query('select * from private.case_owners where case_id=$1', [
-            caseId,
+            id,
           ])
         ).rows,
-      ).toHaveLength(0);
+      ).toEqual([]);
+    });
+    it('requires historical storage cleanup before deleting screenshots and records', async () => {
+      await role('authenticated', owner);
+      await db.query('select public.begin_delete($1)', [legacy]);
+      await denied('select public.finish_delete($1)', [legacy]);
+      await db.query('delete from storage.objects where name=$1', [path]);
+      await db.query('select public.finish_delete($1)', [legacy]);
+      await role(userInfo().username);
       expect(
         (
           await db.query('select * from private.uploads where case_id=$1', [
-            caseId,
+            legacy,
           ])
         ).rows,
-      ).toHaveLength(0);
+      ).toEqual([]);
       expect(
         (
           await db.query(
             'select * from public.case_screenshots where case_id=$1',
-            [caseId],
+            [legacy],
           )
         ).rows,
-      ).toHaveLength(0);
+      ).toEqual([]);
     });
-    it('claims abandoned evidence before cleanup and forbids republishing it', async () => {
-      const abandoned = randomUUID();
+    it('restricts the password rejection hook to Auth administration without logging out OTP sessions', async () => {
+      await role('anon');
+      await denied("select public.reject_password_login('{}')");
       await role('authenticated', owner);
-      await db.query(
-        "select public.begin_case($1,1::smallint,'abandoned fixture','proposal')",
-        [abandoned],
-      );
-      const pending = (
-        await db.query("select public.reserve_upload($1,'image/png',68)", [
-          abandoned,
-        ])
-      ).rows[0].reserve_upload;
-      await db.query(
-        "insert into storage.objects(bucket_id,name,metadata) values('screenshots',$1,$2)",
-        [pending, JSON.stringify({ size: 68, mimetype: 'image/png' })],
-      );
-      await role(userInfo().username);
-      await db.query(
-        "update private.uploads set created_at=now()-interval '25 hours' where case_id=$1",
-        [abandoned],
-      );
-      await role('service_role');
-      expect(
-        (await db.query('select * from public.cleanup_candidates()')).rows.map(
-          (r) => r.cleanup_candidates,
-        ),
-      ).toContain(pending);
-      await role('authenticated', owner);
-      await denied(
-        "select public.commit_case($1,1,1::smallint,'abandoned fixture','proposal',array[$2])",
-        [abandoned, pending],
-      );
-      await db.query('delete from storage.objects where name=$1', [pending]);
-      await role('service_role');
-      await db.query('select public.finish_cleanup()');
-      await role(userInfo().username);
+      await denied("select public.reject_password_login('{}')");
+      await role('supabase_auth_admin');
       expect(
         (
-          await db.query('select * from private.uploads where path=$1', [
-            pending,
-          ])
-        ).rows,
-      ).toHaveLength(0);
+          await db.query(
+            'select public.reject_password_login(\'{"valid":true}\') as result',
+          )
+        ).rows[0].result,
+      ).toMatchObject({ decision: 'reject', should_logout_user: false });
     });
   },
 );

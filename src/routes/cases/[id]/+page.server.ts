@@ -1,4 +1,5 @@
 import { getCase, constitutions, requireUser } from '#lib/server/data.js';
+import { discussions } from '#lib/server/discussion.js';
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -8,6 +9,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   const c = await getCase(locals.supabase, params.id, !!owns);
   return {
     item: c,
+    discussion:
+      c.status === 'published'
+        ? ((await discussions(locals.supabase, [c.id]))?.[0] ?? null)
+        : null,
     constitutions: await constitutions(locals.supabase),
     owns: !!owns,
     cleanupWarning: url.searchParams.has('cleanup'),

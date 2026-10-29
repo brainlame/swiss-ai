@@ -1,179 +1,81 @@
 <script lang="ts">
-  import { onMount, onDestroy, untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
   import {
-    validateFile,
-    validateCount,
     validateText,
+    validateTranscript,
+    validateBehavior,
   } from '#lib/validation.js';
   import type { Constitution, CaseRecord } from '#lib/types.js';
   import ChatEvidence from '#lib/components/ChatEvidence.svelte';
   import {
-    takeExchange,
-    clearExchange,
-    type ChatExchange,
+    takeConversation,
+    evidenceFor,
+    type Transcript,
   } from '#lib/chat-evidence.js';
   let {
     constitutions,
     item,
   }: { constitutions: Constitution[]; item?: CaseRecord } = $props();
   const initial = untrack(() => item);
-  let exchange = $state<ChatExchange | null>(
-    initial?.chat_prompt && initial.chat_response
-      ? { prompt: initial.chat_prompt, response: initial.chat_response }
-      : null,
-  );
-  let handoffMissing = $state(false);
-  type Entry = { key: string; url: string; file?: File; path?: string };
+  let transcript = $state<Transcript | null>(initial?.transcript ?? null);
   let description = $state(initial?.description ?? ''),
     improvement = $state(initial?.improvement ?? ''),
     constitution = $state(initial?.constitution_number ?? 0);
-  let entries = $state<Entry[]>(
-    initial?.screenshots.map((s) => ({
-      key: s.storage_path,
-      url: s.url,
-      path: s.storage_path,
-    })) ?? [],
+  let behavior = $state<'good' | 'bad' | ''>(
+    initial ? (initial.behavior ?? '') : 'bad',
   );
   let id = $state(initial?.id ?? ''),
     busy = $state(false),
+    ready = $state(false),
     message = $state(''),
-    progress = $state(0),
-    stage = $state(''),
     done = $state('');
-  let discardedPaths = $state<string[]>([]);
-  let fileInput = $state<HTMLInputElement>();
-  const ownedUrls = new Set<string>();
   const selected = $derived(
     constitutions.find((c) => c.number === constitution),
   );
+  const evidence = $derived(item ? evidenceFor(item) : transcript);
   onMount(() => {
-    if (!id) id = crypto.randomUUID();
     if (!item) {
-      if (page.url.searchParams.get('source') === 'chatbot') {
-        exchange = takeExchange();
-        handoffMissing = !exchange;
-      } else clearExchange();
-      const n = Number(page.url.searchParams.get('constitution'));
-      if (n >= 1 && n <= 11) constitution = n;
+      transcript = takeConversation();
+      if (!transcript) {
+        void goto('/chatbot?evidence=missing', { replaceState: true });
+        return;
+      }
+      id = crypto.randomUUID();
     }
+    ready = true;
   });
-  onDestroy(() => ownedUrls.forEach((url) => URL.revokeObjectURL(url)));
-  function addFiles(event: Event) {
-    const files = Array.from((event.target as HTMLInputElement).files ?? []);
-    message = '';
-    try {
-      validateCount(entries.length + files.length, !!exchange);
-      files.forEach(validateFile);
-      entries = [
-        ...entries,
-        ...files.map((file) => {
-          const url = URL.createObjectURL(file);
-          ownedUrls.add(url);
-          return { key: crypto.randomUUID(), url, file };
-        }),
-      ];
-    } catch (e) {
-      message = (e as Error).message;
-    }
-    if (fileInput) fileInput.value = '';
-  }
-  function remove(key: string) {
-    const entry = entries.find((e) => e.key === key);
-    if (entry?.path) discardedPaths = [...discardedPaths, entry.path];
-    if (entry?.file) {
-      URL.revokeObjectURL(entry.url);
-      ownedUrls.delete(entry.url);
-    }
-    entries = entries.filter((e) => e.key !== key);
-  }
-  async function api(body: unknown) {
-    const response = await fetch('/api/save', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok)
-      throw new Error(data.message ?? 'The request failed. Please retry.');
-    return data;
-  }
-  function upload(entry: Entry, index: number): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/uploads');
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable)
-          progress = Math.round(
-            ((index + e.loaded / e.total) / entries.length) * 90,
-          );
-      };
-      xhr.onload = () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300) resolve(data.path);
-          else
-            reject(new Error(data.message ?? 'Upload failed. Please retry.'));
-        } catch {
-          reject(new Error('Upload failed. Check your connection and retry.'));
-        }
-      };
-      xhr.onerror = () =>
-        reject(
-          new Error(
-            'Connection interrupted. Your text is preserved; retry the upload.',
-          ),
-        );
-      const form = new FormData();
-      form.set('caseId', id);
-      form.set('file', entry.file!);
-      xhr.send(form);
-    });
-  }
   async function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || !ready) return;
     message = '';
     try {
       validateText(description, improvement, constitution);
-      validateCount(entries.length, !!exchange);
+      validateBehavior(behavior);
+      if (!item) validateTranscript(transcript);
     } catch (e) {
       message = (e as Error).message;
       return;
     }
     busy = true;
-    progress = 0;
-    const body = {
-      id,
-      description,
-      improvement,
-      constitution,
-      version: item?.version ?? 1,
-      discardedPaths,
-      exchange,
-    };
     try {
-      stage = 'Preparing your case…';
-      if (!item) await api({ ...body, stage: 'begin' });
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
-        if (entry.file && !entry.path) {
-          stage = `Uploading screenshot ${i + 1} of ${entries.length}…`;
-          entry.path = await upload(entry, i);
-        }
-      }
-      stage = 'Saving your case…';
-      progress = 95;
-      const result = await api({
-        ...body,
-        paths: entries.map((e) => e.path),
-        stage: 'commit',
+      const response = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          description,
+          improvement,
+          constitution,
+          behavior,
+          transcript,
+          version: item?.version ?? 1,
+        }),
       });
-      progress = 100;
-      done =
-        '/cases/' + result.id + (result.cleanupWarning ? '?cleanup=1' : '');
-      stage = 'Saved successfully.';
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.message ?? 'Could not save. Please retry.');
+      done = '/cases/' + result.id;
       await goto(done);
     } catch (e) {
       message = (e as Error).message;
@@ -183,72 +85,79 @@
   }
 </script>
 
-{#if item?.status === 'deleting'}<div class="notice error" role="alert">
+{#if item?.status === 'deleting'}
+  <p class="notice error" role="alert">
     This case is hidden while deletion is pending. Retry to finish removing its
-    images.
-  </div>
+    evidence.
+  </p>
   <form action={'/cases/' + item.id + '?/delete'} method="POST">
     <button class="button danger">Retry deletion</button>
   </form>
+{:else if !item && !ready}
+  <p class="notice" role="status">
+    Opening your conversation snapshot… If it is unavailable, <a href="/chatbot"
+      >return to Chatbot</a
+    > to start a case.
+  </p>
 {:else}
   <form class="case-form" onsubmit={submit}>
-    {#if exchange}<ChatEvidence {exchange} />
+    {#if evidence}<ChatEvidence transcript={evidence} />
       <p class="notice">
-        This exchange will be public. If it contains identifying information,
-        return to the <a href="/chatbot">Chatbot</a> and use an anonymized prompt
-        before creating a case.
+        This entire conversation will be public. If it contains identifying
+        information, return to <a href="/chatbot">Chatbot</a> and use anonymized messages
+        before starting a case.
       </p>
-    {:else if handoffMissing}<p class="notice" role="status">
-        The selected exchange is no longer available after leaving or refreshing
-        this form. <a href="/chatbot">Return to Chatbot</a> to select a new exchange,
-        or attach screenshots below.
-      </p>{/if}
-    <section class="form-section" aria-label="Evidence">
-      <div class="field-body">
-        <label id="screenshots-label" for="screenshots"
-          >Chatbot screenshots <span class="required" aria-hidden="true"
-            >{exchange ? 'Optional' : 'Required'}</span
-          ></label
-        >
-        <p id="screenshot-help" class="helper">
-          {exchange
-            ? 'Your attached exchange provides evidence. Add up to 5 screenshots if useful.'
-            : 'Add 1–5 screenshots.'} PNG, JPEG, or WebP; maximum 10 MB per image.
+    {/if}
+    {#if item?.screenshots.length}<section
+        class="form-section"
+        aria-label="Historical evidence"
+      >
+        <h2>Existing screenshots</h2>
+        <p class="helper">Your original evidence is preserved.</p>
+        <div class="evidence-grid">
+          {#each item.screenshots as image, i}<a
+              href={image.url}
+              target="_blank"
+              rel="noreferrer"
+              ><img
+                src={image.url}
+                alt={'Historical screenshot ' + (i + 1)}
+              /></a
+            >{/each}
+        </div>
+      </section>{/if}
+    <section class="form-section" aria-label="Behavior classification">
+      <fieldset class="behavior-options" disabled={busy}>
+        <legend>Behavior <span class="required">Required</span></legend>
+        <p class="helper" id="behavior-help">
+          Does this example show behavior you want the model to exhibit, or
+          behavior you want it to avoid?
         </p>
-        <div class="privacy-note" id="privacy-note">
-          <p>
-            Anonymize your screenshots before uploading. Remove names, email
-            addresses, and other identifying information. Your case and
-            screenshots will be publicly visible.
-          </p>
-        </div>
-        <div class="upload-area">
-          <span class="muted">Choose screenshots from your device.</span><input
-            bind:this={fileInput}
-            id="screenshots"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            multiple
-            onchange={addFiles}
-            disabled={busy || entries.length >= 5}
-            aria-describedby="screenshot-help privacy-note"
-          />
-        </div>
-        {#if entries.length}<div class="preview-grid">
-            {#each entries as entry, i (entry.key)}<div class="preview">
-                <img
-                  src={entry.url}
-                  alt={'Selected screenshot ' + (i + 1)}
-                /><button
-                  type="button"
-                  class="remove-image"
-                  disabled={busy}
-                  onclick={() => remove(entry.key)}
-                  aria-label={'Remove screenshot ' + (i + 1)}>✕</button
-                ><span>{i + 1} of {entries.length}</span>
-              </div>{/each}
-          </div>{/if}
-      </div>
+        <label
+          ><input
+            type="radio"
+            name="behavior"
+            value="bad"
+            bind:group={behavior}
+            required
+            aria-describedby="behavior-help"
+          /> Bad / unwanted behavior</label
+        >
+        <label
+          ><input
+            type="radio"
+            name="behavior"
+            value="good"
+            bind:group={behavior}
+            required
+            aria-describedby="behavior-help"
+          /> Good / wanted behavior</label
+        >
+        {#if initial && !initial.behavior}<p class="helper">
+            This historical case is unclassified. Choose a classification to
+            save your changes.
+          </p>{/if}
+      </fieldset>
     </section>
     <section class="form-section" aria-label="Case context">
       <div class="field-body">
@@ -257,8 +166,8 @@
           ></label
         >
         <p class="helper" id="description-help">
-          What happened, and why does it matter? Good, problematic, and mixed
-          examples are all welcome.
+          What happened, and why does it matter? Explain which parts of the
+          conversation support your case.
         </p>
         <textarea
           id="description"
@@ -324,23 +233,19 @@
           </div>{/if}
       </div>
     </section>
-    {#if message}<div class="notice error" role="alert">{message}</div>{/if}
-    {#if busy}<div class="upload-progress" role="status">
-        <p>{stage}</p>
-        <progress value={progress} max="100" aria-label="Submission progress"
-          >{progress}%</progress
-        >
-      </div>{/if}
+
+    {#if message}<p class="notice error" role="alert">{message}</p>{/if}
+    {#if busy}<p role="status">Saving your case…</p>{/if}
     {#if done}<p class="notice success" role="status">
         Your case is saved. <a href={done}>Open your case</a>
       </p>{/if}
     <div class="form-footer">
       <p class="muted">
-        Your case will be public.<br />Your account details will stay private.
+        Your case will be public.<br />Your account details stay private.
       </p>
-      <button class="button" type="submit" disabled={busy || !!done}
-        >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit case'}
-      </button>
+      <button class="button" disabled={busy || !!done || !ready}
+        >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit case'}</button
+      >
     </div>
   </form>
 {/if}

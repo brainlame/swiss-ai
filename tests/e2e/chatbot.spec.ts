@@ -1,22 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-async function signIn(page: Page) {
-  await page.goto('/chatbot');
-  await expect(page).toHaveURL(/\/signin\?next=%2Fchatbot$/);
-  await expect(page.locator('form[data-ready=true]')).toBeVisible();
-  await page.getByLabel('Email address').fill('citizen@fixtures.invalid');
-  await page.getByLabel('Password', { exact: true }).fill('fixturepass123');
-  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
-  await expect(page).toHaveURL(/\/chatbot$/);
-  await expect(page.getByLabel('Message', { exact: true })).toBeEnabled();
-}
-
-async function send(page: Page, text: string) {
-  const count = await page.locator('.chat-message').count();
-  await page.getByLabel('Message', { exact: true }).fill(text);
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.locator('.chat-message')).toHaveCount(count + 2);
-}
+import { signin as signIn, send } from './helpers';
 
 test('chatbot: server authentication, latest-message rules, safe input and ephemeral lifecycle', async ({
   page,
@@ -28,7 +12,6 @@ test('chatbot: server authentication, latest-message rules, safe input and ephem
   expect(signedOut.status()).toBe(303);
   expect(signedOut.headers().location).toBe('/signin?next=%2Fchatbot');
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open navigation' }).click();
   await page
     .getByRole('navigation')
     .getByRole('link', { name: 'Chatbot', exact: true })
@@ -129,10 +112,9 @@ test('chatbot: server authentication, latest-message rules, safe input and ephem
     fullPage: true,
   });
 
-  await page.getByRole('button', { name: 'Open navigation' }).click();
   await page
     .getByRole('navigation')
-    .getByRole('link', { name: 'Constitutions', exact: true })
+    .getByRole('link', { name: 'Home', exact: true })
     .click();
   await expect(page).toHaveURL(/\/$/);
   await page.goBack();
@@ -144,8 +126,7 @@ test('chatbot: server authentication, latest-message rules, safe input and ephem
   await expect(page.locator('.chat-message')).toHaveCount(0);
   await expect(input).toHaveValue('');
   await send(page, 'hello');
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('button', { name: 'Your account' }).click();
+  await page.getByRole('button', { name: 'Account' }).click();
   await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await signIn(page);
@@ -244,90 +225,78 @@ test('chatbot: 50 hints in a keyboard-accessible modal beside the heading', asyn
   await expect(hints).toBeFocused();
 });
 
-test('chatbot: selected exchange creates a public immutable case, supports optional screenshots, edits and deletion', async ({
+test('chatbot: full snapshot is read-only, screenshot-free and persists through save, edit and public detail', async ({
   page,
   request,
 }, info) => {
   await signIn(page);
   const prompt = 'hello <img src=x onerror="window.evidenceInjected=true">';
-  const response = 'Hello. What would you like to talk about?';
   await send(page, prompt);
   await send(page, 'What is the capital of Australia?');
-  await expect(
-    page.getByRole('button', { name: 'Create a case', exact: true }),
-  ).toHaveCount(2);
+  const originals = await page.locator('.chat-message p').allTextContents();
   await page
-    .getByRole('button', { name: 'Create a case', exact: true })
-    .first()
+    .getByRole('button', { name: 'Submit a case', exact: true })
     .click();
   await expect(page).toHaveURL(/\/submit\?source=chatbot$/);
-  const evidence = page.getByRole('region', { name: 'Attached chat exchange' });
-  await expect(evidence).toBeVisible();
+  const evidence = page.getByRole('region', { name: 'Attached conversation' });
+  await expect(evidence.locator('article')).toHaveCount(4);
+  expect(await evidence.locator('article p').allTextContents()).toEqual(
+    originals,
+  );
+  await expect(evidence.locator('textarea,input,img,script')).toHaveCount(0);
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
   await expect(
-    evidence
-      .getByRole('article', { name: 'Attached user prompt' })
-      .locator('p'),
-  ).toHaveText(prompt);
-  await expect(
-    evidence
-      .getByRole('article', { name: 'Attached chatbot response' })
-      .locator('p'),
-  ).toHaveText(response);
-  await expect(evidence.locator('input,textarea,img,script')).toHaveCount(0);
-  await expect(evidence).not.toContainText('Australia');
-  await expect(page.locator('#screenshots-label')).toContainText('Optional');
-  const description = 'Chat evidence browser fixture ' + Date.now();
-  await page
-    .getByRole('textbox', { name: 'Description', exact: true })
-    .fill(description);
+    page.getByRole('radio', { name: 'Bad / unwanted behavior' }),
+  ).toBeChecked();
+  const description = 'Full conversation browser fixture';
+  await page.getByLabel('Description', { exact: false }).fill(description);
   await page
     .getByLabel('Proposed constitutional improvement', { exact: false })
-    .fill('Explain what is known and how it can be checked.');
-  await page.getByLabel('Constitution being addressed').selectOption('2');
+    .fill('Explain how an answer can be verified.');
+  await page
+    .getByLabel('Constitution being addressed', { exact: false })
+    .selectOption('2');
+  await page.getByRole('radio', { name: 'Good / wanted behavior' }).check();
   await page.screenshot({
-    path: info.outputPath('chat-case-form.png'),
+    path: info.outputPath('conversation-case-form.png'),
     fullPage: true,
   });
   let failOnce = true;
   await page.route('**/api/save', async (route) => {
-    if (route.request().postDataJSON().stage === 'commit' && failOnce) {
+    if (failOnce) {
       failOnce = false;
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
         body: JSON.stringify({
-          message: 'Fixture connection interrupted; please retry.',
+          message: 'Fixture connection interrupted; retry.',
         }),
       });
     } else await route.continue();
   });
   await page.getByRole('button', { name: 'Submit case', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('connection interrupted');
-  await expect(evidence).toContainText(prompt);
-  await expect(
-    page.getByRole('textbox', { name: 'Description', exact: true }),
-  ).toHaveValue(description);
+  await expect(page.getByLabel('Description', { exact: false })).toHaveValue(
+    description,
+  );
+  await expect(evidence.locator('article')).toHaveCount(4);
   await page.getByRole('button', { name: 'Submit case', exact: true }).click();
   await expect(page).toHaveURL(/\/cases\/[a-f0-9-]+$/);
-  const detail = page.url(),
-    id = detail.split('/').pop()!;
-  await expect(evidence).toContainText(prompt);
-  await expect(
-    page.getByRole('heading', { name: 'Chatbot screenshots', exact: true }),
-  ).toHaveCount(0);
+  const detail = page.url();
+  await expect(evidence.locator('article')).toHaveCount(4);
+  await expect(page.locator('.behavior-label')).toHaveText(
+    'Good / wanted behavior',
+  );
   await page.screenshot({
-    path: info.outputPath('chat-case-detail.png'),
+    path: info.outputPath('conversation-case-detail.png'),
     fullPage: true,
   });
   const result = await (
     await request.get('/api/cases?q=' + encodeURIComponent(description))
   ).json();
   expect(result.items).toHaveLength(1);
-  expect(result.items[0]).toMatchObject({
-    chat_prompt: prompt,
-    chat_response: response,
-    screenshots: [],
-  });
+  expect(result.items[0].transcript).toBeUndefined();
+  expect(result.items[0]).toMatchObject({ behavior: 'good', screenshots: [] });
   expect(JSON.stringify(result)).not.toMatch(
     /owner_id|user_id|@fixtures\.invalid|matchedRuleId/,
   );
@@ -335,62 +304,28 @@ test('chatbot: selected exchange creates a public immutable case, supports optio
   const visitor = await publicContext.newPage();
   await visitor.goto(detail);
   await expect(
-    visitor.getByRole('region', { name: 'Attached chat exchange' }),
-  ).toContainText(response);
+    visitor
+      .getByRole('region', { name: 'Attached conversation' })
+      .locator('article'),
+  ).toHaveCount(4);
   await expect(
     visitor.getByRole('link', { name: 'Edit case', exact: true }),
   ).toHaveCount(0);
   await publicContext.close();
-
-  const tamper = await page.evaluate(
-    async ({ id, description }) => {
-      const res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          stage: 'commit',
-          id,
-          version: 2,
-          constitution: 2,
-          description,
-          improvement: 'Updated proposal',
-          paths: [],
-          exchange: { prompt: 'forged', response: 'forged' },
-        }),
-      });
-      return { status: res.status, body: await res.json() };
-    },
-    { id, description },
-  );
-  expect(tamper.status).toBe(400);
-  expect(tamper.body.message).toContain('read-only');
   await page.getByRole('link', { name: 'Edit case', exact: true }).click();
-  await expect(evidence).toContainText(prompt);
+  await expect(evidence.locator('article')).toHaveCount(4);
   await page
-    .getByRole('textbox', { name: 'Description', exact: true })
+    .getByLabel('Description', { exact: false })
     .fill(description + ' updated');
-  await page.locator('#screenshots').setInputFiles({
-    name: 'optional.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
-      'base64',
-    ),
-  });
+  await page.getByRole('radio', { name: 'Bad / unwanted behavior' }).check();
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page).toHaveURL(detail);
-  await expect(
-    page.getByRole('button', { name: 'Enlarge screenshot 1' }),
-  ).toBeVisible();
-  await expect(evidence).toContainText(response);
-  await page.getByRole('link', { name: 'Edit case', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove screenshot 1' }).click();
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-  await expect(page).toHaveURL(detail);
-  await expect(
-    page.getByRole('button', { name: 'Enlarge screenshot 1' }),
-  ).toHaveCount(0);
-  await expect(evidence).toContainText(prompt);
+  expect(await evidence.locator('article p').allTextContents()).toEqual(
+    originals,
+  );
+  await expect(page.locator('.behavior-label')).toHaveText(
+    'Bad / unwanted behavior',
+  );
   await page.getByRole('button', { name: 'Delete case', exact: true }).click();
   await page
     .getByRole('dialog', { name: 'Delete this case?' })
@@ -403,32 +338,26 @@ test('chatbot: selected exchange creates a public immutable case, supports optio
   ).toBeVisible();
 });
 
-test('chatbot: fallback evidence transfers, refreshing discards unsaved evidence and restores screenshot requirement', async ({
+test('chatbot: missing or refreshed snapshots return to Chatbot with guidance', async ({
   page,
 }) => {
   await signIn(page);
+  await expect(
+    page.getByRole('button', { name: 'Submit a case', exact: true }),
+  ).toBeDisabled();
+  await page.goto('/submit');
+  await expect(page).toHaveURL(/\/chatbot$/);
   await send(page, 'xyzzy');
   await page
-    .getByRole('button', { name: 'Create a case', exact: true })
+    .getByRole('button', { name: 'Submit a case', exact: true })
     .click();
   await expect(
-    page.getByRole('region', { name: 'Attached chat exchange' }),
+    page.getByRole('region', { name: 'Attached conversation' }),
   ).toContainText('do not have a predefined reply');
   await page.reload();
-  await expect(
-    page.getByRole('region', { name: 'Attached chat exchange' }),
-  ).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('no longer available');
-  await expect(page.locator('#screenshots-label')).toContainText('Required');
-  await page
-    .getByRole('textbox', { name: 'Description', exact: true })
-    .fill('Ordinary case without evidence');
-  await page
-    .getByLabel('Proposed constitutional improvement', { exact: false })
-    .fill('Clarify the sample principle.');
-  await page.getByLabel('Constitution being addressed').selectOption('2');
-  await page.getByRole('button', { name: 'Submit case', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText(
-    'one to five screenshots',
+  await expect(page).toHaveURL(/\/chatbot\?evidence=missing$/);
+  await expect(page.getByRole('status')).toContainText(
+    'snapshot is no longer available',
   );
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
 });

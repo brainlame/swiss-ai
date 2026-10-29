@@ -69,7 +69,7 @@ describe('Google OAuth server flow', () => {
         new URL(
           signInWithOAuth.mock.calls[0][0].options.redirectTo,
         ).searchParams.get('next'),
-      ).toBe('/submit');
+      ).toBe('/chatbot');
       const callbackEvent = {
         ...event,
         url: new URL(
@@ -79,7 +79,7 @@ describe('Google OAuth server flow', () => {
       };
       await expect(
         callback(callbackEvent as unknown as Parameters<typeof callback>[0]),
-      ).rejects.toMatchObject({ location: '/submit' });
+      ).rejects.toMatchObject({ location: '/chatbot' });
     }
   });
   it('keeps the intended destination and shows a generic error when initiation fails', async () => {

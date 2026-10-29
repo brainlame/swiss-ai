@@ -1,125 +1,134 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { page } from '$app/state';
   let { data, form } = $props();
   let busy = $state(false),
-    googleBusy = $state(false),
+    now = $state(Date.now()),
     ready = $state(false);
+  const step = $derived(form?.step ?? (data.challenge ? 'verify' : 'email'));
+  const email = $derived(form?.email ?? data.challenge?.email ?? '');
+  const resendAt = $derived(form?.resendAt ?? data.challenge?.resendAt ?? 0);
+  const remaining = $derived(Math.max(0, Math.ceil((resendAt - now) / 1000)));
   onMount(() => {
     ready = true;
+    const timer = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(timer);
   });
-  const title = $derived(
-    data.mode === 'signin'
-      ? 'Sign in'
-      : data.mode === 'signup'
-        ? 'Create your account'
-        : data.mode === 'forgot-password'
-          ? 'Reset your password'
-          : 'Choose a new password',
-  );
+  const submit: SubmitFunction = () => {
+    busy = true;
+    return async ({ update }) => {
+      try {
+        await update();
+      } finally {
+        busy = false;
+        now = Date.now();
+      }
+    };
+  };
 </script>
 
-<svelte:window
-  onpageshow={() => {
-    busy = false;
-    googleBusy = false;
-  }}
-/>
-<svelte:head><title>{title} · AI Constitutions</title></svelte:head>
+<svelte:head><title>Sign in · AI Constitutions</title></svelte:head>
 <div class="auth-shell">
-  <h1>{title}</h1>
+  <h1>{step === 'verify' ? 'Check your email' : 'Sign in or join'}</h1>
   <p class="muted">
-    An account helps you manage your cases. Your public contributions are always
-    labeled Anonymous.
+    {step === 'verify'
+      ? `Enter the six-digit code sent to ${email}.`
+      : 'Use your email to sign in. New here? We’ll create your account when you verify your code.'}
   </p>
   {#if page.url.searchParams.has('authError')}<p
       class="notice error"
       role="alert"
     >
-      {page.url.searchParams.get('authError') === 'oauth'
-        ? 'Google sign-in was canceled or could not be completed. Please try again, or use email and password.'
-        : 'This link has expired or is invalid. Sign in or request a fresh password reset link.'}
+      That sign-in link is no longer valid. Request an email code below.
     </p>{/if}
   {#if form?.message}<p
-      class:success={form.success}
       class="notice"
-      role={form.success ? 'status' : 'alert'}
+      class:error={!form.message.startsWith('Code sent')}
+      role={form.message.startsWith('Code sent') ? 'status' : 'alert'}
     >
       {form.message}
     </p>{/if}
-  {#if data.mode === 'signin' || data.mode === 'signup'}
+  {#if step === 'verify'}
     <form
-      class="google-auth"
       method="POST"
-      action="/auth/google"
-      onsubmit={() => {
-        googleBusy = true;
-      }}
+      action={'?/verify&next=' + encodeURIComponent(data.next)}
+      use:enhance={submit}
+      data-ready={ready}
     >
       <input type="hidden" name="next" value={data.next} />
-      <button class="button secondary full" disabled={busy || googleBusy}
-        >{googleBusy ? 'Connecting to Google…' : 'Continue with Google'}</button
+      <input type="hidden" name="email" value={email} />
+      <label for="token">Verification code</label>
+      <input
+        id="token"
+        name="token"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern={'[0-9]{6}'}
+        minlength="6"
+        maxlength="6"
+        required
+        placeholder="000000"
+        aria-describedby="code-help"
+      />
+      <p class="helper" id="code-help">
+        Paste or type all six digits, including any leading zero.
+      </p>
+      <button class="button full" disabled={busy}
+        >{busy ? 'Please wait…' : 'Verify and continue'}</button
       >
     </form>
-    <p class="google-auth-help muted">For new and existing accounts.</p>
-    <div class="auth-divider"><span>or continue with email</span></div>
-  {/if}
-  <form
-    method="POST"
-    data-ready={ready}
-    use:enhance={() => {
-      busy = true;
-      return async ({ update }) => {
-        await update();
-        busy = false;
-      };
-    }}
-  >
-    <input type="hidden" name="next" value={data.next} />
-    {#if data.mode !== 'reset-password'}<label for="email">Email address</label
-      ><input
+    <form
+      method="POST"
+      action={'?/send&next=' + encodeURIComponent(data.next)}
+      use:enhance={submit}
+      class="auth-followup"
+    >
+      <input type="hidden" name="next" value={data.next} /><input
+        type="hidden"
+        name="email"
+        value={email}
+      />
+      <button class="button secondary full" disabled={busy || remaining > 0}
+        >{remaining > 0
+          ? `Resend code in ${remaining}s`
+          : 'Resend code'}</button
+      >
+    </form>
+    <form
+      method="POST"
+      action={'?/change&next=' + encodeURIComponent(data.next)}
+      use:enhance={submit}
+      class="auth-followup"
+    >
+      <button class="text-button" disabled={busy}>Use a different email</button>
+    </form>
+  {:else}
+    <form
+      method="POST"
+      action={'?/send&next=' + encodeURIComponent(data.next)}
+      use:enhance={submit}
+      data-ready={ready}
+    >
+      <input type="hidden" name="next" value={data.next} />
+      <label for="email">Email address</label>
+      <input
         id="email"
         name="email"
         type="email"
         autocomplete="email"
-        value={form?.email ?? ''}
-        required
-      />{/if}
-    {#if data.mode !== 'forgot-password'}<label for="password">Password</label
-      ><input
-        id="password"
-        name="password"
-        type="password"
-        autocomplete={data.mode === 'signin'
-          ? 'current-password'
-          : 'new-password'}
-        minlength="8"
+        value={email}
+        maxlength="254"
         required
       />
-      <p class="helper">At least 8 characters.</p>{/if}
-    <button class="button full" disabled={busy || googleBusy}
-      >{busy
-        ? 'Please wait…'
-        : data.mode === 'signin'
-          ? 'Sign In'
-          : data.mode === 'signup'
-            ? 'Create account'
-            : data.mode === 'forgot-password'
-              ? 'Send reset link'
-              : 'Save new password'}</button
-    >
-  </form>
-  {#if data.mode === 'signin'}<p>
-      <a href="/forgot-password">Forgot your password?</a>
-    </p>
-    <p class="muted">
-      New here? <a href={'/signup?next=' + encodeURIComponent(data.next)}
-        >Create an account</a
+      <button class="button full" disabled={busy}
+        >{busy ? 'Sending…' : 'Send verification code'}</button
       >
-    </p>{:else}<p>
-      <a href={'/signin?next=' + encodeURIComponent(data.next)}
-        >Back to sign in</a
-      >
-    </p>{/if}
+    </form>
+  {/if}
+  <p class="helper">
+    Your contributions are public and labeled Anonymous. Your email stays
+    private.
+  </p>
 </div>

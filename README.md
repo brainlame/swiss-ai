@@ -1,45 +1,50 @@
 # AI Constitutions
 
-A mobile-first SvelteKit 3 / Svelte 5 / TypeScript app for collecting public chatbot evidence and concrete improvements to 11 **sample** constitutions. The working title and sample statements can be replaced. Citizen cases have four form fields: screenshots, description, proposed improvement, and one constitution. Screenshots are optional only when a read-only chat exchange is attached. No public profile or account identifier is published.
+A responsive SvelteKit/TypeScript app for contributing chatbot behavior examples and proposed changes to 11 sample constitutional principles. Blue/white and blue/black themes respect the system preference and remember a manual selection. The working title and all sample statements are replaceable. Voting and anonymous discussions help people highlight useful cases. Formal review and model training remain future work.
 
-## Install and run
+## Install and run locally
 
-Use Node 22.12+ (Node 24 LTS recommended) and npm. Versions are pinned in `package.json` and `package-lock.json`.
+Use Node 22.12+ (Node 24 LTS recommended) and npm. Dependencies and the lockfile are pinned.
 
 ```sh
 npm ci
 cp .env.example .env
-# Apply the database migration and configure Auth below before browsing database pages.
+# Apply migrations and configure email codes as described below.
 npm run dev
 ```
 
-Open the printed local URL (normally http://localhost:5173). `.env.example` includes the supplied URL and **publishable** key. Local `.env*` files are ignored. The app uses SvelteKit's validated runtime environment APIs (`src/env.ts`, `$app/env/public`, `$app/env/private`). No service credential is needed for regular case CRUD, uploads, public viewing, or authentication. Prisma is documentation/validation tooling; all app queries and Storage operations use the Supabase SDK.
+Open http://localhost:5173. The supplied Supabase URL and publishable key are in `.env.example`; `.env*` files are ignored. SvelteKit’s environment APIs read the values declared in `src/env.ts`. The app uses the Supabase SDK for queries, authentication and historical Storage access. No admin key is required for ordinary requests.
 
-## Simulated chatbot
+## How the app works
 
-The main navigation includes **Chatbot**, a signed-in page at `/chatbot`. The server load uses the existing `requireUser` gate after the Supabase cookie session has been verified with `getUser()` in the request hook. Signed-out visitors return to `/chatbot` after signing in.
+The fixed bottom tabs are **Home**, **Chatbot**, and **All Cases**, on desktop and mobile. Account and signout are in the header; **My Cases** is an account destination.
 
-`src/lib/chatbot.ts` contains exactly 50 predefined response rules plus a fallback. The matcher accepts only the latest message, normalizes Unicode, case, whitespace and curly apostrophes, and requires Unicode word boundaries. Matching phrases with more whitespace-separated words take precedence; equal specificity uses the rules' declared order, regardless of where the phrase occurs in the message. Replies intentionally include helpful, incorrect, overconfident, dismissive and mixed examples. The page clearly identifies the simulation; the replies are not factual guidance or adopted policy.
+1. Sign in or join at `/signin` with an emailed six-digit code.
+2. Open Chatbot and send messages. Hints opens a keyboard-accessible dialog with one clue for each of the 50 predefined behaviors. This is a simulation; some replies are intentionally flawed.
+3. Choose **Submit a case** in Chatbot. It freezes **every** message in chronological order before navigation clears the active chat.
+4. Review the read-only message bubbles, describe the case, choose bad / unwanted (new-case default) or good / wanted behavior, propose an improvement, and select exactly one constitution.
+5. Submit to publish. Anyone can find the case in All Cases, search both text fields, filter by constitution, sort, and load more. Owners can edit case fields and classification, or delete their case.
 
-The typed page-local message objects have stable random IDs, roles, text, ISO timestamps and an internal matched-rule ID for assistant messages. The active conversation stays in page memory; it is not saved to Supabase, browser storage, cookies, URLs or application logs, and uses no external model/API. Navigating away, refreshing, signing out and leaving via browser history clears it. Returning starts empty. Messages have a 10,000-character limit, matching case-evidence validation.
+Active chats stay in browser memory, without saved history, local/session storage, message URLs or application logs. The case handoff is a frozen one-use memory snapshot, retained by the mounted form during failed saves. Refreshing an unsaved form intentionally discards it and returns to Chatbot with guidance. `/submit` without a handoff redirects into Chatbot. A query parameter alone cannot supply evidence. JavaScript is required for the simulation and its form.
 
-**Hints** beside the Chatbot heading opens an accessible native dialog with 50 categories and natural-language clues, one for each rule (`src/lib/chatbot-hints.ts`). The list reveals no replies and has no clickable prompts. Escape or Close dismisses it and returns focus to Hints.
+Messages contain only `role` and `text` when attached; message IDs, timestamps and internal matched rules are omitted. Evidence preserves line breaks and renders as escaped text. The app validates 2–100 alternating user/assistant messages, complete pairs, 1–10,000 characters per message and at most 100,000 characters total. JSON request bodies are limited to 512,000 bytes. The server checks simulated replies against the local matcher. SQL independently validates structure/size and makes persisted transcripts immutable. This is contributed evidence, not a cryptographically certified record of chat origin; a direct authenticated API caller can supply structurally valid text.
 
-**Create a case** below every assistant reply carries exactly that reply and its immediately preceding user message to `/submit?source=chatbot`. This is a one-use in-memory transfer, with no message text in the URL or browser storage. The form shows two read-only evidence bubbles and reminds the author that the exchange will become public. Only these two text entries are stored, when the user submits the case; no rule IDs, message IDs, author IDs or other conversation messages are attached. Refreshing an unsaved form discards this transfer and shows an actionable notice; ordinary screenshot submission remains available.
-
-The `20261015000000_chat_exchange_evidence.sql` migration adds nullable `chat_prompt` and `chat_response` case columns. A paired-value constraint and immutable-column trigger protect the evidence; authenticated RPCs retain owner binding, and `commit_case` permits zero screenshots only for a complete attached exchange. Existing screenshot cases still require 1–5 images. The save endpoint also verifies new responses against the local simulation and rejects exchange changes during edits. SQL permissions remain the authority for direct API requests: attached citizen evidence is not a cryptographically certified transcript. Owners can edit descriptions, proposals, constitution references and screenshots, while the two evidence texts remain unchanged. The same bubbles appear on public detail and owner edit pages. Prisma documents the columns; its comments identify constraints and triggers represented only in SQL.
-
-Desktop Enter sends, Shift+Enter inserts a newline, and touch devices retain multiline Enter with a Send button. The conversation follows new messages only while near the bottom. A Visual Viewport resize handler keeps the composer within the available height when the on-screen keyboard resizes the viewport. Actual keyboard behavior still depends on the mobile browser; automated tests emulate touch and reduced viewport height rather than a physical phone keyboard.
-
-Run `npm test` for all rule, precedence and authentication unit tests. Run `npm run test:e2e -- --grep chatbot` with the isolated test database setup below for navigation, submissions, safe rendering, scrolling, mobile input, session gates and conversation lifecycle checks. Existing deployment setup applies; no new environment variables are needed.
+No new screenshot inputs, image uploads or screenshot requirements remain. Historical screenshots and older prompt/reply evidence stay visible. Historical unclassified rows remain `NULL`; an owner must explicitly choose a classification when editing them. Editing retains historical images unchanged. Deletion still removes associated evidence using the Storage API before removing records; failed cleanup is visible and retryable.
 
 ## Database and Storage setup
 
-**An administrator must apply migrations. The publishable key cannot do this.** SQL migrations in `supabase/migrations/` are authoritative. Apply them once in filename order: `20261012000000_initial.sql` sets up tables, constraints, indexes, RLS, private ownership, RPCs, screenshot Storage and 11 seed statements; `20261015000000_chat_exchange_evidence.sql` adds chat evidence and updates case RPCs. Existing installations that already applied the initial migration must apply only the new chat-evidence migration before deploying the updated app.
+SQL migrations are authoritative. Do not use `prisma db push` or Prisma migrations. `prisma/schema.prisma` documents public constitutions/cases/screenshots and private ownership/uploads, with comments for SQL-only checks, triggers, policies, RPCs and indexes. Prisma 7 uses `prisma.config.ts`; `npm run prisma:validate` needs no running database.
 
-Option A: paste each unapplied migration into the project's Supabase SQL Editor, preceded by `BEGIN;` and followed by `COMMIT;`, in filename order.
+An administrator must apply unapplied migrations in filename order:
 
-Option B: install the Supabase CLI, authenticate, link the project and push:
+- `20261012000000_initial.sql`: schema, private owner mapping, RLS, Storage, search/browsing indexes and exactly 11 sample constitutions.
+- `20261015000000_chat_exchange_evidence.sql`: historical prompt/reply support.
+- `20261023000453_conversation_cases_and_email_codes.sql`: nullable transcript/classification columns, bounded transcript checks, immutable evidence, atomic `save_case`, retired creation/upload RPC access, and a restricted password rejection hook.
+- `20261029155023_case_votes_and_comments.sql`: public comments, private comment ownership and ballots, bounded discussion reads, authenticated vote/comment mutations, and comment deletion with reply-preserving tombstones.
+
+Existing installations apply **only the unapplied migration(s)**. Neither additive upgrade relabels historical cases, alters Auth identities/password hashes, or deletes evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
+
+Using the authenticated Supabase CLI:
 
 ```sh
 supabase login
@@ -47,16 +52,18 @@ supabase link --project-ref sfccsrznnxivtmcixlwd
 supabase db push
 ```
 
-Option C: use an administrator database connection with `psql`:
+Or paste each unapplied file into Supabase SQL Editor inside `BEGIN;` / `COMMIT;`. For an existing installation, apply each unapplied migration in order. For example, if all earlier migrations are already applied:
 
 ```sh
-psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261012000000_initial.sql
-psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261015000000_chat_exchange_evidence.sql
+psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 \
+  -f supabase/migrations/20261029155023_case_votes_and_comments.sql
 ```
 
-Keep `private` and `storage` out of PostgREST's exposed schemas. The normal exposed schemas are `public` and `graphql_public`. The migration intentionally revokes application table writes; users mutate their records through restricted, transactional RPCs. On an existing project, audit pre-existing permissive policies for the same bucket: PostgreSQL policies combine with OR. This migration assumes a new bucket named `screenshots` and fails visibly if it already exists.
+Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public case and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
 
-For a complete local Supabase stack, install the CLI and Docker, then run:
+Browsing uses literal substring search with a GIN trigram index, constitution filtering, `(created_at,id)` keyset ordering and a 13-row lookahead to display 12. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
+
+For local Supabase with Docker:
 
 ```sh
 supabase start
@@ -64,123 +71,63 @@ supabase db reset
 supabase status
 ```
 
-Replace the two PUBLIC values in your ignored `.env` with the local URL and anon/publishable key from `supabase status`. `supabase/config.toml` configures local ports and Auth. Test fixtures are not seeded into the production migration.
+Set the local URL and publishable key from `supabase status` in the ignored `.env`. Local Auth settings and email templates are checked in. Restart the stack after changing `supabase/config.toml`.
 
-## Supabase Auth configuration
+## Email-code authentication: required hosted setup
 
-### Google sign-in and sign-up
+The single sign-in/signup UI uses `signInWithOtp({ email, options: { shouldCreateUser: true } })`, followed by `verifyOtp({ email, token, type: 'email' })`. A new address is registered by Supabase during the request, but cannot authenticate or own cases until verification succeeds. Existing users authenticate into their existing ID and retain ownership; no account recreation or data migration occurs.
 
-Both `/signin` and `/signup` offer **Continue with Google**. This is one Supabase OAuth flow: a first-time visitor gets a Supabase account when signup is allowed, and an existing user signs in. The native form POSTs to `/auth/google`, checks the request origin, validates the intended return path, and calls `signInWithOAuth({ provider: 'google' })` on the existing server-rendering client. The SDK stores a PKCE verifier in cookies. The server redirects only to the configured Supabase origin; Supabase handles Google consent and returns an authorization code to `/auth/callback`. `exchangeCodeForSession` establishes the Supabase cookie session before redirecting to the intended page. Protected requests still verify the user with `getUser()`.
+The existing SSR client writes session cookies and refreshes them; `hooks.server.ts` verifies `auth.getUser()` before protected operations. The app validates return paths, supports string codes with leading zeros, pasting, numeric keyboards and one-time-code autofill. Incorrect/expired codes, sending failures and rate limits have actionable messages. A short-lived HttpOnly challenge cookie remembers the email/step and a 60-second resend cooldown; it contains no verification code. Supabase independently enforces its actual send/verification limits. Signout uses Supabase Auth.
 
-Canceled consent and failed/expired exchanges return a generic retry message without reflecting provider error details. Google does not expose profile names or emails in case responses: the existing private ownership model and Anonymous labels apply to Google accounts too. This app requests no Google API access beyond authentication and does not save Google access/refresh tokens in application tables.
+**Do these in the hosted Supabase project before deploying:**
 
-**Required hosted setup:**
+1. Authentication → Sign In / Providers → Email: keep Email and new-user signup enabled; keep email confirmation enabled. Set **OTP length to 6**, **OTP expiry to 600 seconds**, and minimum email resend interval to **60 seconds**. The current CLI equivalents are checked in as `otp_length`, `otp_expiry`, and `max_frequency`. Dashboard labels may vary.
+2. Authentication → Email Templates: replace **Magic Link** and **Confirm signup** bodies with `supabase/templates/email-code.html`, and use the corresponding code subject. It uses `{{ .Token }}`, with no confirmation/magic link. Both templates matter: first-time and existing users can follow different mail paths.
+3. Configure custom SMTP for actual citizen delivery, set a verified sender, and review Auth rate limits for your expected traffic. Supabase’s default mail service is limited and is not a production mailing setup. Test delivery to both a new email and an existing account, including spam folders.
+4. Authentication → URL Configuration: set Site URL to your production origin. The code flow verifies on `/signin` and needs no email-link callback. Retain allow-listed `/auth/callback` and `/auth/confirm` URLs only if you still support already-issued confirmation links or the legacy Google OAuth endpoint. `/signup`, `/forgot-password`, and `/reset-password` now redirect to the one code flow and accept no password actions.
+5. **Password login control:** the new migration provides `public.reject_password_login(jsonb)`. On a supported **Teams or Enterprise** plan, Authentication → Hooks → Password Verification Attempt: select that Postgres function and enable it. It rejects password attempts with `should_logout_user=false`, preserving existing code sessions. Local config enables this hook. Verify a known existing password is rejected via the direct Auth API while OTP still works.
 
-1. In [Google Auth Platform](https://console.cloud.google.com/auth/overview), select/create a project and configure Branding, Audience and the consent screen. Use basic authentication scopes: `openid`, email and profile. While the app is in Testing, add the Google accounts you will test with under Test users; publish the audience when ready for general access.
-2. Create an OAuth client of type **Web application**. Add your production origin (for example `https://YOUR_APP.vercel.app`) to Authorized JavaScript origins. Add `http://localhost:5173` and/or `http://127.0.0.1:5173` for development.
-3. Add this exact **Authorized redirect URI** in Google:
+**Platform limitation:** removing password UI does not disable Supabase’s password endpoints. The current hosted Password Verification Attempt hook is limited to Teams/Enterprise. On Free/Pro, existing passwords can still authenticate through the direct Auth API; there is no separate email-password provider toggle that safely leaves email OTP enabled. Direct signup/recovery/password-setting APIs are also controlled by Supabase rather than SvelteKit. The verification hook blocks password sign-in where available, but does not remove stored credentials or disable every password-management endpoint. Do not disable Email entirely (that also breaks OTP), delete users, or manually rewrite `auth.users` password hashes. A fully enforced code-only policy requires the supported hook/plan or a separately configured compatible Auth deployment. The app makes no claim that old passwords are unusable until this control is activated and tested.
 
-   ```text
-   https://sfccsrznnxivtmcixlwd.supabase.co/auth/v1/callback
-   ```
+Google buttons have been removed to present the requested single email-code experience. Existing Google identities and the older OAuth callback/start endpoints remain intact for compatibility; no Google credentials are required for the new flow.
 
-   This is Google's return address to Supabase. It is different from the app's `/auth/callback`. If you configure a custom Supabase Auth domain, use the callback shown on that project's Google provider page instead.
+Reference: [Supabase email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless), [Auth hook availability](https://supabase.com/docs/guides/auth/auth-hooks), [Password verification hook](https://supabase.com/docs/guides/auth/auth-hooks/password-verification-hook), [CLI email configuration](https://supabase.com/docs/guides/local-development/cli/config).
 
-4. In [Supabase → Authentication → Sign In / Providers → Google](https://supabase.com/dashboard/project/sfccsrznnxivtmcixlwd/auth/providers), enable Google and paste the **Client ID** and **Client Secret** from Google. Save. Keep new-user signup enabled if Google sign-up should work. Credentials belong in Supabase, not in a `PUBLIC_` variable or Vercel's app environment.
-5. In Supabase → Authentication → URL Configuration, set **Site URL** to the actual production origin. Add these Redirect URLs, replacing the production placeholder:
+### Receiving a link instead of a code
 
-   ```text
-   https://YOUR_APP.vercel.app/auth/callback
-   https://YOUR_APP.vercel.app/auth/callback?**
-   http://localhost:5173/auth/callback
-   http://localhost:5173/auth/callback?**
-   http://127.0.0.1:5173/auth/callback
-   http://127.0.0.1:5173/auth/callback?**
-   ```
+Running `npm run dev` starts the website locally; it does not start or configure Supabase. The supplied `.env.example` points at the hosted project `sfccsrznnxivtmcixlwd`, so its dashboard templates control the emails even on localhost. The templates in `supabase/config.toml` apply only to a local Supabase stack.
 
-   The query pattern allows the validated `next` destination and `provider=google` marker. Add only the preview origins you intend to use. Configure `APP_ORIGIN` per the deployment instructions; it must not force production URLs onto a different preview origin.
+In [the hosted project's Auth email templates](https://supabase.com/dashboard/project/sfccsrznnxivtmcixlwd/auth/templates), save `supabase/templates/email-code.html` as the body for **both Confirm signup and Magic Link**. It must display `{{ .Token }}` instead of a `{{ .ConfirmationURL }}` link. `signInWithOtp` supports both formats and does not override the email template. Also configure the hosted Email provider's OTP length to 6 and expiry to 600 seconds to match the form.
 
-6. Deploy the updated app, then test Continue with Google from both sign-in and signup, including a signed-out visit to `/chatbot` or `/submit`. The app needs no new environment variables, packages or SQL migrations for OAuth; the existing Supabase URL and publishable key are sufficient after provider setup.
+After saving, request a **new** code from the app and check the newest email. Already-delivered emails do not change; changing hosted templates does not require rebuilding the website. These settings affect every app using that Supabase project. For a truly local backend, start the local Supabase stack, use its URL/key in `.env`, and restart the app; restart that stack after template/config changes.
 
-For a **local Supabase stack** (rather than the supplied hosted project), additionally register `http://127.0.0.1:54321/auth/v1/callback` with Google. Enable `[auth.external.google]` in `supabase/config.toml`, set its `client_id`, and use `secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"` with that secret supplied to the Supabase CLI. Keep `skip_nonce_check = false`. This optional CLI secret is not an app environment variable. The checked-in stack keeps Google disabled until you configure credentials. See [Supabase's Google setup guide](https://supabase.com/docs/guides/auth/social-login/auth-google).
+## Voting and anonymous discussions
 
-Verification uses a loopback-only OAuth fixture that checks the real SDK's PKCE challenge/verifier, one-time codes, cookie persistence and protected redirects, without contacting Google or sending emails. A real Google consent flow cannot be tested until the provider credentials are configured. On 2026-10-15, the hosted project's public `/auth/v1/settings` reported Google disabled, email enabled, signup allowed and email auto-confirm disabled; no hosted settings were changed.
+All Cases uses wider reading cards with a case description, proposed improvement, voting bar, comments and an **Open case** link. Case detail pages share the same discussion component and data. An upvote means “this is a useful case worth highlighting”; it does not label the model’s behavior good or bad and does not approve the proposed constitutional change.
 
-### Email/password and email confirmation
+Anyone can read vote totals, the two newest top-level comment previews and expanded threads. Signing in is required to vote, comment or reply. An account has one ballot per case; choosing the other vote switches it, and selecting the current vote removes it. Vote buttons retain the reference design’s green/red selected states and use explicit text/pressed states. Empty vote totals have an unfilled bar.
 
-Enable the Email provider, email/password signup, and choose whether email confirmation is required. Set **Site URL** to the actual app origin. Add redirect URLs for each development/production origin:
+All commenters are **Anonymous**. No display-name/profile table is added. `public.case_comments` contains message IDs and thread references, never Auth identifiers or emails. Ballots live in `private.case_votes`; ownership lives in `private.comment_owners`. Public read RPCs return aggregates and a current-request `my_vote` / `can_delete` boolean, not linkable account identities. Existing no-store response headers prevent personalized state from being shared by caches.
 
-- `http://localhost:5173/auth/callback` and `http://localhost:5173/auth/callback?next=**`
-- `http://localhost:5173/auth/confirm` and `http://localhost:5173/auth/confirm?**`
-- `http://localhost:5173/reset-password`
-- Equivalent HTTPS production URLs; include the exact origin and port used in development.
+Comments are escaped plain text, 1–2,000 characters, with relative timestamps. Top-level comments load newest first; **Show all comments** expands them and fetches 10 per page. Replies load chronologically in pages of 10. Every comment has Reply; replies to replies join that top-level thread, like a YouTube discussion. Cursor ordering includes the unique message ID to prevent ties from skipping rows. Authors can delete their own comments after confirmation; a deleted parent becomes a tombstone while its replies remain. Deleting a case cascades its comments, private ownership and votes.
 
-In the confirmation email template, use the token-hash route so confirmation works even on another device. Replace `APP_ORIGIN` below with the literal correct origin (localhost during local testing):
+Authenticated SDK calls invoke restricted transactional RPCs; ordinary users cannot write the public table directly or read/forge ballots and ownership. Blank/oversized comments, cross-case parents, deeper nesting through direct RPCs, hidden cases, and another author’s deletion are rejected by SQL. Client-generated comment IDs make network retries idempotent. Failed requests retain typed text. Feed summaries fetch counts and at most two previews for up to 12 cases in one batch. A discussion outage leaves the case readable and offers Retry discussion.
 
-```html
-<a
-  href="APP_ORIGIN/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/submit"
-  >Confirm your email</a
->
-```
+Apply the additive `20261029155023_case_votes_and_comments.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing cases.
 
-In the recovery template:
+## Historical Storage housekeeping
 
-```html
-<a
-  href="APP_ORIGIN/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password"
-  >Reset your password</a
->
-```
+Owner deletion still hides a case, removes its images using the Supabase SDK, then deletes case/screenshot/ownership/upload rows. Cleanup failures can be retried from My Cases. Existing abandoned files and failed deletions can use the preserved `/api/cleanup` endpoint:
 
-Alternatively the standard `{{ .ConfirmationURL }}` template uses the PKCE `/auth/callback` route and requires the originating browser's verifier cookie. Both routes are implemented; token-hash templates avoid that same-browser limitation. Expired links give an actionable signin/reset message. Return destinations are validated as local URLs. Configure production email delivery/SMTP and Supabase Auth rate limits in the dashboard. Passwords require at least 8 characters, with Supabase's configured policy enforced in addition. Sessions refresh through SSR cookies; `getUser()` verifies authentication for every request. Only a `signedIn` boolean reaches layout data, never an email or owner ID.
-
-The app's current email flow is:
-
-1. `/signup` calls Supabase `auth.signUp` with the email, password and an `/auth/callback?next=...` redirect. Supabase manages the password, confirmation token and email delivery; this app has no separate mail server or email-verification table.
-2. With **Confirm email** enabled, Supabase returns no authenticated session. The form tells the user to check their inbox. After the valid confirmation link is opened, either the token-hash route verifies it with `verifyOtp`, or the default Supabase link returns a PKCE code that the callback exchanges for a cookie session. The user is then signed in. The sample token-hash template above always lands on `/submit`; the default `ConfirmationURL` flow preserves the original validated destination and requires the same originating browser.
-3. With **Confirm email** disabled, Supabase may return a session immediately and the app redirects directly to the intended destination. The local `supabase/config.toml` enables confirmations, and the hosted public settings checked on 2026-10-15 also require confirmation (`mailer_autoconfirm=false`).
-4. Expired, already-used or invalid links show an actionable authentication error. Supabase controls token lifetime, delivery limits and SMTP. Check Authentication → Email Templates, Email settings and SMTP in the hosted dashboard; these administrative values are not readable through the supplied publishable key.
-
-For public email signup, configure [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) in Supabase with your sender/provider credentials. The default Supabase sender is intended for testing, limits recipients to project-team addresses and has restrictive rate limits. Public settings do not reveal whether custom SMTP or the recommended email template is already configured, and no real emails were sent during verification. Google authentication is a separate provider flow and normally does not need the app's email/password confirmation link.
-
-## Evidence lifecycle and housekeeping
-
-Screenshots are 1–5 PNG/JPEG/WebP files, at most 10 MiB each. The form displays previews, removal, and per-file transfer progress. The SvelteKit upload endpoint checks file size, MIME and magic bytes; the Storage bucket independently enforces allowed MIME/size for direct requests. Original filenames and user IDs never form part of storage paths: `random-case-uuid/random-image-uuid.ext`.
-
-A private draft is created under the verified account, with the selected chat evidence if present. Screenshot paths are reserved and files are uploaded when provided. `commit_case` requires 1–5 distinct images for ordinary cases, or 0–5 for cases with a complete attached exchange. It checks stored image byte sizes/types and case ownership, then publishes case text and screenshot references atomically. Retry IDs prevent duplicate creation; versions reject stale concurrent edits, while exact commit retries (including empty image arrays) are idempotent. Edits upload replacements to new immutable paths. Failed saves keep form text, retained evidence and successfully uploaded pending images so the user can retry. Only completed submissions are public. Citizen text is rendered as escaped text.
-
-Successful edits attempt immediate cleanup of removed/pending evidence. Failures are explicitly reported while the saved public content remains valid. Deletion first hides the case, deletes images via Storage's API, then deletes the case and its screenshot/ownership/upload records. Failed deletion is visible in My Cases and can be retried. Storage objects are **never** deleted by manipulating their SQL metadata directly in application code.
-
-Configure **scheduled housekeeping before production** to remove uploads abandoned for more than 24 hours and retry incomplete deletion/old-image cleanup:
-
-1. Add server-only `SUPABASE_SERVICE_ROLE_KEY` and a random `CLEANUP_SECRET` (at least 32 random bytes) to your deployment environment.
-2. Schedule an hourly POST to `https://YOUR_APP/api/cleanup` with header `Authorization: Bearer YOUR_CLEANUP_SECRET`. Use your host's scheduler or a Supabase Cron job with pg_net and secrets in Vault. Do not put the credentials in a public URL or source code.
-3. Alert/retry on non-2xx responses. The route processes up to 40 cases per invocation; invoke more often if a backlog develops. Candidate rows remain retryable on failure.
-
-For a manual run from a shell with the secret already exported:
+- Set server-only `SUPABASE_SERVICE_ROLE_KEY` and random `CLEANUP_SECRET` (at least 32 random bytes).
+- Schedule an hourly POST to `/api/cleanup` with `Authorization: Bearer YOUR_CLEANUP_SECRET`; alert/retry on non-2xx. Use a hosting scheduler or Supabase Cron with pg_net/Vault.
+- The route processes up to 40 cases per run. No service credential is sent to browsers. New conversation-only cases create no abandoned image files.
 
 ```sh
 curl --fail --request POST --header "Authorization: Bearer $CLEANUP_SECRET" https://YOUR_APP/api/cleanup
 ```
 
-The cleanup RPC locks cases and claims old paths before deleting files, preventing them from being committed concurrently. The cleanup RPCs are executable only by `service_role`; secrets never enter browser bundles. Without the scheduler, immediate cleanup and owner retry still work, but unattended abandoned files remain until housekeeping is configured.
-
-## Database decisions and Prisma
-
-`Constitution` maps to `public.constitutions`; `Case` maps to `public.cases`; `CaseScreenshot` maps to `public.case_screenshots`. Private `CaseOwner` and `Upload` models capture ownership and file reservations. No public table has a user/email column. Anonymous visitors can read only published cases and their evidence. The owner can see private draft/deleting states; My Cases excludes drafts. Owners cannot transfer ownership, mutate constitutions, directly insert records, or overwrite committed screenshots.
-
-The Prisma 7 config at `prisma.config.ts` uses `DATABASE_URL` solely for schema tooling. Validate without a running database:
-
-```sh
-npm run prisma:validate
-```
-
-SQL is authoritative. **Do not run `prisma db push` or Prisma migrations.** Prisma cannot represent the RLS/grants, security-definer functions, custom checks, private helper functions, bucket policies, partial browsing indexes, or trigram expression search index. The Auth-managed `user_id -> auth.users.id` FK (ON DELETE RESTRICT) is documented in the schema; Prisma intentionally does not manage Supabase's Auth schema. Creation/update timestamps are managed by the commit RPC, rather than Prisma `@updatedAt`.
-
-Browsing uses an indexed, literal substring search across description plus improvement, optional constitution filter, `(created_at, id)` keyset pagination, and 13-row lookahead to display 12 rows. The client appends without duplicates and resets on query change. Search/filter/sort use URL query parameters. A newly published case may appear on a later page of oldest-first browsing; a refresh includes new cases in newest-first browsing. Community reviews can later reference case IDs without changing the privacy boundary.
-
-## Testing
+## Verification
 
 ```sh
 npm run format:check
@@ -190,88 +137,31 @@ npm test
 npm run build
 ```
 
-There are three distinct verification levels. Skipped integration suites are explicitly labeled; a skip is not a successful permission check.
-
-### Isolated PostgreSQL migration/RLS tests
-
-Use a disposable PostgreSQL instance with `pg_trgm`. The bootstrap imitates only Supabase-owned Auth/Storage schemas, **never apply it to Supabase or an existing database**. For example with PostgreSQL installed locally:
+Permission tests use a **disposable database only**. The bootstrap imitates Supabase-owned Auth/Storage schemas and must never be applied to an existing or hosted Supabase database.
 
 ```sh
-initdb -D /tmp/ai-constitutions-test -A trust -E UTF8
+initdb -D /tmp/ai-constitutions-test -A trust --locale=C -E UTF8
 pg_ctl -D /tmp/ai-constitutions-test -l /tmp/ai-constitutions-test.log -o '-p 55439 -h 127.0.0.1' start
-psql -h 127.0.0.1 -p 55439 -d postgres -v ON_ERROR_STOP=1 -f tests/postgres-bootstrap.sql -f supabase/migrations/20261012000000_initial.sql -f supabase/migrations/20261015000000_chat_exchange_evidence.sql
 export TEST_DATABASE_URL="postgresql://$USER@127.0.0.1:55439/postgres"
+psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f tests/postgres-bootstrap.sql
+for migration_file in supabase/migrations/*.sql; do
+  psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration_file"
+done
 npm run test:integration
-```
-
-These tests run against real PostgreSQL grants, constraints, functions and RLS with separate anon/owner/other roles; fixtures live in a rolled-back transaction. They verify creation, editing, deletion, required evidence/text, public anonymity, private ownership, SQL browsing and direct object-policy enforcement. They do not prove Supabase Auth delivery or the hosted Storage HTTP implementation.
-
-### Browser tests and visual QA
-
-With that disposable PostgreSQL instance running:
-
-```sh
 npx playwright install chromium
-TEST_DATABASE_URL="postgresql://$USER@127.0.0.1:55439/postgres" npm run test:e2e
-# Or use an installed Chrome:
-CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  TEST_DATABASE_URL="postgresql://$USER@127.0.0.1:55439/postgres" npm run test:e2e
+npm run test:e2e
 ```
 
-Playwright starts the app and a **loopback-only fixture adapter**, overriding Supabase configuration only for those processes. The adapter exercises real SQL/RLS through the actual Supabase SDK, with simulated Auth and file transport. This is isolated from the supplied hosted project. It resets only disposable fixture data. Screenshots are saved in ignored `test-results/`. Tests cover navigation and keyboard access, themes, account gates/return destinations, public browsing, filters/sorting/load more, input validation, creation/edit/deletion, evidence dialogs and safe text. Run on a database dedicated exclusively to tests.
+The PostgreSQL suite exercises real constraints, grants, ownership and Storage RLS using anon, owner and other users, with rolled-back fixture data. The browser suite starts the app and a loopback-only Supabase SDK transport fixture backed by real PostgreSQL. Email delivery/code issuance and file HTTP transport are simulated; fixture code `012345` intentionally tests leading zeros. Tests cover existing/new accounts, code errors, cooldown, change email, protected access/signout, keyboard tabs, light/dark desktop/mobile layouts, transcript capture/read-only display, screenshot-free saves, classifications, historical evidence, browsing and owner management. Artifacts go to ignored `test-results/`.
 
-### Real Supabase direct-request tests
+For actual Supabase Auth/PostgREST/Storage tests, apply all migrations and configure the password hook in an **isolated** local stack or dedicated test project. Set `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY`, and `TEST_SUPABASE_SERVICE_ROLE_KEY`; a remote project also requires `TEST_ISOLATED_PROJECT=1`. The optional suite uses administrator-generated email OTPs for temporary fixture accounts, avoiding real email delivery, and cleans up its records. It is skipped without those credentials. Actual SMTP delivery and physical mobile keyboards still need deployment checks.
 
-Apply both migrations to an **isolated Supabase test project** or the local Supabase stack. Set `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY`, and server-only `TEST_SUPABASE_SERVICE_ROLE_KEY` in your shell. For a dedicated remote test project, also set `TEST_ISOLATED_PROJECT=1` to explicitly attest it is isolated. Then run `npm run test:integration`. Tests create temporary verified accounts, use separate owner/other/anon SDK clients to test direct PostgREST and Storage calls, and delete their cases/users afterward. This suite is skipped unless all three test credentials are present; application `.env` credentials never implicitly enable it.
+Stop the disposable database with `pg_ctl -D /tmp/ai-constitutions-test stop`. See `VERIFICATION.md` for results from this implementation.
 
-Stop the disposable server after tests:
+## Deploy
 
-```sh
-pg_ctl -D /tmp/ai-constitutions-test stop
-```
+Apply the new migration, configure hosted Auth, and deploy the matching app together. No new public environment variables are needed.
 
-## Production deployment
+**Vercel:** use Framework Preset SvelteKit, this package’s folder as Root Directory, Build Command `npm run build`, Node 24.x, and turn Output Directory Override **off**. `vercel.json` clears a stale `public` override; adapter-vercel generates `.vercel/output/` when `VERCEL=1`. Add the two `PUBLIC_SUPABASE_*` values to each deployed environment (Production/Preview), then redeploy. A gitignored local `.env` is not uploaded by Git. Leave `APP_ORIGIN` unset for per-deployment origins or set the canonical origin at build time. `VERCEL=1 npm run build` verifies packaging locally without deploying.
 
-### Vercel
-
-The build selects `@sveltejs/adapter-vercel` when Vercel sets `VERCEL=1`. It generates `.vercel/output/`, including server functions and static assets, using Node.js 24. The checked-in `vercel.json` selects the SvelteKit framework and build command and resets the output-directory override to the framework default.
-
-In Vercel Project Settings → Build and Deployment:
-
-1. Set **Framework Preset** to **SvelteKit**.
-2. Set **Root Directory** to the directory containing this `package.json` and `vercel.json`.
-3. Use **Build Command** `npm run build` and **Node.js Version** `24.x`.
-4. Turn **Output Directory → Override** **off**. Remove any saved `public` override; let the SvelteKit adapter supply deployment output.
-5. Add `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_PUBLISHABLE_KEY` to each environment you deploy (Production and/or Preview). Add the server-only cleanup variables when enabling scheduled cleanup. A gitignored local `.env` is not uploaded by Git deployments.
-6. Leave `APP_ORIGIN` unset for Vercel's per-deployment origin, or set it to the exact canonical deployment origin for that environment. Add your production URL and allowed preview callback URLs to Supabase Auth's redirect allow list as described above.
-7. Redeploy after changing settings or environment variables. Existing deployments do not pick up those changes.
-
-The error **No Output Directory named "public" found** means Vercel expected static output in `public/`. This app needs a SvelteKit server adapter for authentication, server-rendered pages and API routes. The original standalone Node adapter generated `dist/`, which does not match that static configuration. Creating an empty `public/` folder would hide the configuration problem without deploying the server.
-
-To verify Vercel output locally without deploying:
-
-```sh
-VERCEL=1 npm run build
-```
-
-This validates packaging, but does not deploy or check your remote Vercel settings. See the [SvelteKit Vercel adapter documentation](https://svelte.dev/docs/kit/adapter-vercel) and [Vercel build settings](https://vercel.com/docs/builds/configure-a-build).
-
-Vercel Functions have a [4.5 MB request-body limit](https://vercel.com/docs/functions/limitations#request-body-size). The current screenshot endpoint proxies each image through the server, so larger images will be rejected by Vercel before reaching application validation. The full 10 MB upload allowance requires a Node host with the request limits below, or a future change to direct-to-Supabase uploads. `BODY_SIZE_LIMIT` cannot raise Vercel's platform limit.
-
-### Standalone Node host
-
-Deploy the generated adapter-node app in `dist/` on a Node host. Precompression is disabled; the host or reverse proxy can compress responses. Build and run:
-
-```sh
-npm ci
-npm run build
-npm start
-```
-
-Set the two PUBLIC Supabase values at runtime, `BODY_SIZE_LIMIT=12M`, your server-only cleanup variables, and `APP_ORIGIN=https://YOUR_APP` **at build time** when behind a proxy. `paths.origin` in SvelteKit 3 supplies the canonical origin for CSRF and redirect generation; do not use the removed SvelteKit 2 `ORIGIN` setting. Configure HTTPS, the appropriate `PORT`, request limits of at least 12 MB, and hourly cleanup. `npm start` loads an ignored `.env` if present; real hosting environment variables take precedence. A static-only host cannot serve this app. The publishable key stays public; RLS and Storage policies are the authorization boundary.
-
-## Scope and verification status
-
-This version implements collection, browsing, accounts, and owner case management. Reviews, votes, comments, moderation, notifications, OCR, redaction, AI analysis and model training are deliberately deferred. See `VERIFICATION.md` for completed checks and the external setup that remains. No administrator migration or deployment has been performed on the supplied hosted project.
-
-Reference patterns: [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client?queryGroups=framework&framework=sveltekit), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Storage access control](https://supabase.com/docs/guides/storage/security/access-control), [SvelteKit 3 environment variables](https://svelte.dev/docs/kit/environment-variables).
+**Node host:** `npm ci && npm run build && npm start` serves adapter-node output in `dist/`. Set the public Supabase values at runtime, optional cleanup secrets, a suitable `PORT`, and `APP_ORIGIN=https://YOUR_APP` at build time behind a proxy. `npm start` loads a local `.env` if present; hosting variables take precedence. Use HTTPS and allow request bodies of at least 512,000 bytes (`BODY_SIZE_LIMIT=512K` is in the example). A static-only host cannot serve SSR/Auth/API routes.

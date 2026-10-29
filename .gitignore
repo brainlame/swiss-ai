@@ -10,3 +10,5 @@ coverage/
 
 dist/
 .vercel/
+# Supabase CLI local cache
+supabase/.temp/

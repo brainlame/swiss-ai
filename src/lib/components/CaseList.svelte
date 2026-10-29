@@ -1,20 +1,21 @@
 <script lang="ts">
+  import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
   import { onMount, untrack } from 'svelte';
   import { page } from '$app/state';
-  import type { CaseRecord, Constitution } from '#lib/types.js';
-  import { date } from '#lib/types.js';
+  import type { CaseSummary, Constitution } from '#lib/types.js';
+  import { date, behaviorLabel } from '#lib/types.js';
   let {
     data,
   }: {
     data: {
-      items: CaseRecord[];
+      items: CaseSummary[];
       hasMore: boolean;
       query: string;
       mine: boolean;
       constitutions: Constitution[];
     };
   } = $props();
-  let items = $state<CaseRecord[]>(untrack(() => data.items)),
+  let items = $state<CaseSummary[]>(untrack(() => data.items)),
     hasMore = $state(untrack(() => data.hasMore)),
     busy = $state(false),
     message = $state('');
@@ -55,7 +56,7 @@
       const ids = new Set(items.map((c) => c.id));
       items = [
         ...items,
-        ...result.items.filter((c: CaseRecord) => !ids.has(c.id)),
+        ...result.items.filter((c: CaseSummary) => !ids.has(c.id)),
       ];
       hasMore = result.hasMore;
     } catch (e) {
@@ -76,20 +77,14 @@
   <p>
     {data.mine
       ? 'View and manage the cases you’ve contributed.'
-      : 'Browse submitted chatbot examples and proposed changes to the constitutions.'}
+      : 'Discover chatbot examples, highlight useful cases, and join the discussion.'}
   </p>
 </div>
 {#if page.url.searchParams.has('deleted')}<p
     class="notice success"
     role="status"
   >
-    Your case and its screenshots have been deleted.
-  </p>{/if}
-{#if page.url.searchParams.has('password')}<p
-    class="notice success"
-    role="status"
-  >
-    Your password has been updated.
+    Your case and its evidence have been deleted.
   </p>{/if}
 <form
   class="filter-bar"
@@ -133,46 +128,78 @@
     >{/if}
 </form>
 <div class="results-heading">
-  <span>{data.mine ? 'Your cases' : 'Citizen cases'}</span><a href="/submit"
-    >Submit a case
+  <span>{data.mine ? 'Your cases' : 'Citizen cases'}</span><a href="/chatbot"
+    >Open Chatbot
   </a>
 </div>
-{#if items.length}<div class="case-grid">
-    {#each items as item (item.id)}<article class="case-card">
-        {#if item.screenshots[0]?.url}<a
-            class="case-thumbnail"
-            href={item.status === 'deleting'
-              ? '/cases/' + item.id + '/edit'
-              : '/cases/' + item.id}
-            tabindex="-1"
-            aria-hidden="true"
-            ><img src={item.screenshots[0].url} alt="" loading="lazy" /></a
-          >{/if}
+{#if items.length}<div
+    class="case-grid discussion-feed"
+    data-sveltekit-preload-data="off"
+  >
+    {#each items as item (item.id)}<article
+        class="case-card discussion-card"
+        aria-label="Citizen case"
+      >
         <div class="case-card-content">
-          <span class="pill">Constitution #{item.constitution_number}</span
-          >{#if item.status === 'deleting'}<p class="notice error">
-              Deletion pending
-            </p>{/if}
+          <div class="case-card-top">
+            <span class="pill">Constitution #{item.constitution_number}</span
+            ><span class="behavior-label" class:good={item.behavior === 'good'}
+              >{behaviorLabel(item.behavior)}</span
+            >
+          </div>
           <h2>
             <a
               href={item.status === 'deleting'
                 ? '/cases/' + item.id + '/edit'
                 : '/cases/' + item.id}
-              >{item.description.length > 130
-                ? item.description.slice(0, 130) + '…'
+              >{item.description.length > 100
+                ? item.description.slice(0, 100) + '…'
                 : item.description}</a
             >
           </h2>
+          {#if item.description.length > 100}<p
+              class="case-description-preview"
+            >
+              {item.description.length > 600
+                ? item.description.slice(0, 600) + '…'
+                : item.description}
+            </p>{/if}
+          <div class="case-proposal-preview">
+            <strong>Proposed improvement</strong>
+            <p>
+              {item.improvement.length > 250
+                ? item.improvement.slice(0, 250) + '…'
+                : item.improvement}
+            </p>
+          </div>
           <div class="case-meta">
             <span>Anonymous</span><time datetime={item.created_at}
               >{date(item.created_at)}</time
             >
           </div>
-          {#if data.mine}<a
-              class="manage-link"
-              href={'/cases/' + item.id + '/edit'}
-              >{item.status === 'deleting' ? 'Retry deletion' : 'Edit case'}
-            </a>{/if}
+          {#if item.status === 'deleting'}<p class="notice error">
+              Deletion pending
+            </p>
+          {:else}<CaseDiscussion
+              caseId={item.id}
+              initial={item.discussion}
+              signedIn={!!page.data.signedIn}
+            />{/if}
+          <div class="case-card-footer">
+            {#if data.mine}<a
+                class="manage-link"
+                href={'/cases/' + item.id + '/edit'}
+                >{item.status === 'deleting'
+                  ? 'Retry deletion'
+                  : 'Edit case'}</a
+              >{/if}
+            <a
+              class="button secondary open-case"
+              href={item.status === 'deleting'
+                ? '/cases/' + item.id + '/edit'
+                : '/cases/' + item.id}>Open case</a
+            >
+          </div>
         </div>
       </article>{/each}
   </div>{:else}<div class="empty-state">
@@ -188,12 +215,12 @@
         ? 'Try a different search or constitution.'
         : data.mine
           ? 'Your submitted cases will appear here.'
-          : 'Submit a chatbot example and suggest an improvement.'}
+          : 'Start a conversation in Chatbot to contribute the first case.'}
     </p>
     <a
       class="button"
-      href={active ? (data.mine ? '/my-cases' : '/cases') : '/submit'}
-      >{active ? 'Reset filters' : 'Submit a Case'}</a
+      href={active ? (data.mine ? '/my-cases' : '/cases') : '/chatbot'}
+      >{active ? 'Reset filters' : 'Open Chatbot'}</a
     >
   </div>{/if}
 {#if message}<p class="notice error" role="alert">{message}</p>{/if}

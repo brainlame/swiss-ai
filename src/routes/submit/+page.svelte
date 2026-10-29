@@ -7,8 +7,8 @@
 <div class="page-heading form-page-heading narrow">
   <h1>Submit a case</h1>
   <p>
-    Describe a chatbot interaction, include evidence, and propose a change to
-    one constitution.
+    Review your attached conversation, describe the behavior, and propose a
+    change to one constitution.
   </p>
 </div>
 <div class="narrow"><CaseForm constitutions={data.constitutions} /></div>

@@ -1,161 +1,124 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
-import { authAction } from '../../src/lib/server/auth';
+import { authAction, emailChallenge } from '../../src/lib/server/auth';
 import { requireUser } from '../../src/lib/server/data';
-import { GET as confirm } from '../../src/routes/auth/confirm/+server';
-import { GET as callback } from '../../src/routes/auth/callback/+server';
 import { POST as save } from '../../src/routes/api/save/+server';
-import { POST as upload } from '../../src/routes/api/uploads/+server';
 import { load as chatbot } from '../../src/routes/chatbot/+page.server';
-function event(fields: Record<string, string> = {}, user: unknown = null) {
+function event(fields: Record<string, string> = {}, challenge: unknown = null) {
   const data = new FormData();
-  for (const [k, v] of Object.entries(fields)) data.set(k, v);
+  Object.entries(fields).forEach(([k, v]) => data.set(k, v));
   const auth = {
-    signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
-    signUp: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
-    resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
-    updateUser: vi.fn().mockResolvedValue({ error: null }),
-    verifyOtp: vi.fn().mockResolvedValue({ error: null }),
-    exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
+    signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+    verifyOtp: vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'fixture' } },
+      error: null,
+    }),
   };
   return {
-    url: new URL('https://app.example/submit?constitution=5'),
+    url: new URL('https://app.example/chatbot'),
     request: { formData: async () => data },
-    locals: { user, supabase: { auth } },
-  } as unknown as Omit<RequestEvent, 'url'> & { url: URL };
+    cookies: {
+      get: vi.fn(() => (challenge ? JSON.stringify(challenge) : undefined)),
+      set: vi.fn(),
+      delete: vi.fn(),
+    },
+    locals: { user: null, supabase: { auth } },
+  } as unknown as RequestEvent;
 }
-describe('verified-account gates and authentication flows', () => {
-  it('redirects submission and My Cases to signin with the full intended destination', () => {
-    for (const path of ['/submit?constitution=5', '/my-cases']) {
-      const e = event();
-      e.url = new URL('https://app.example' + path);
-      expect(() => requireUser(e)).toThrow();
-      try {
-        requireUser(e);
-      } catch (r) {
-        expect(r).toMatchObject({
+describe('email code authentication and access', () => {
+  it('protects Chatbot, My Cases and saves with verified account requirements', async () => {
+    for (const path of ['/chatbot', '/my-cases', '/submit?source=chatbot']) {
+      const e = { ...event(), url: new URL('https://app.example' + path) };
+      expect(() => requireUser(e)).toThrow(
+        expect.objectContaining({
           status: 303,
           location: '/signin?next=' + encodeURIComponent(path),
-        });
-      }
+        }),
+      );
     }
-  });
-  it('rejects protected JSON/file operations before any mutation', async () => {
     const e = event();
+    expect(() => chatbot(e as Parameters<typeof chatbot>[0])).toThrow();
     await expect(save(e as Parameters<typeof save>[0])).rejects.toMatchObject({
       status: 401,
     });
-    await expect(
-      upload(e as Parameters<typeof upload>[0]),
-    ).rejects.toMatchObject({ status: 401 });
   });
-  it('protects the chatbot server load and returns no account or conversation data', async () => {
-    const signedOut = event();
-    signedOut.url = new URL('https://app.example/chatbot');
-    expect(() => chatbot(signedOut as Parameters<typeof chatbot>[0])).toThrow(
-      expect.objectContaining({
-        status: 303,
-        location: '/signin?next=%2Fchatbot',
-      }),
-    );
-    const signedIn = event(
-      {},
-      { id: 'fixture', email: 'private@example.test' },
-    );
-    expect(await chatbot(signedIn as Parameters<typeof chatbot>[0])).toEqual(
-      {},
+  it('uses one OTP flow for new and existing emails without changing identities', async () => {
+    const e = event({ email: '  Citizen@example.test ' });
+    expect(await authAction(e, 'send')).toMatchObject({
+      step: 'verify',
+      email: 'citizen@example.test',
+    });
+    expect(e.locals.supabase.auth.signInWithOtp).toHaveBeenCalledWith({
+      email: 'citizen@example.test',
+      options: { shouldCreateUser: true },
+    });
+    expect(e.cookies.set).toHaveBeenCalledWith(
+      'email-code-challenge',
+      expect.any(String),
+      expect.objectContaining({ httpOnly: true, secure: true }),
     );
   });
-  it('signs in and validates return destinations', async () => {
+  it('verifies a pasted code with a leading zero and validates return destinations', async () => {
     const e = event({
       email: 'citizen@example.test',
-      password: 'password123',
-      next: '//evil.example',
+      token: ' 012345 ',
+      next: '//evil.test',
     });
-    await expect(authAction(e, 'signin')).rejects.toMatchObject({
+    await expect(authAction(e, 'verify')).rejects.toMatchObject({
       status: 303,
-      location: '/submit',
+      location: '/chatbot',
     });
-    expect(e.locals.supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-      email: 'citizen@example.test',
-      password: 'password123',
-    });
-  });
-  it('supports email-confirmation signup and recovers actionable signup errors', async () => {
-    const e = event({
-      email: 'citizen@example.test',
-      password: 'password123',
-      next: '/my-cases',
-    });
-    expect(await authAction(e, 'signup')).toMatchObject({
-      success: true,
-      message: expect.stringContaining('confirm'),
-    });
-    vi.mocked(e.locals.supabase.auth.signUp).mockResolvedValueOnce({
-      data: { user: null, session: null },
-      error: { message: 'fixture failure' } as never,
-    });
-    expect(await authAction(e, 'signup')).toMatchObject({
-      status: 400,
-      data: { message: expect.stringContaining('Signup failed') },
-    });
-  });
-  it('sends generic recovery success and updates the verified user’s password', async () => {
-    const e = event({ email: 'citizen@example.test' });
-    expect(await authAction(e, 'forgot-password')).toMatchObject({
-      success: true,
-      message: expect.stringContaining('If an account exists'),
-    });
-    expect(e.locals.supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
-      'citizen@example.test',
-      { redirectTo: 'https://app.example/auth/callback?next=/reset-password' },
-    );
-    const reset = event({ password: 'newpassword123' }, { id: 'fixture' });
-    await expect(authAction(reset, 'reset-password')).rejects.toMatchObject({
-      status: 303,
-      location: '/my-cases?password=updated',
-    });
-    expect(reset.locals.supabase.auth.updateUser).toHaveBeenCalledWith({
-      password: 'newpassword123',
-    });
-    await expect(
-      authAction(event({ password: 'newpassword123' }), 'reset-password'),
-    ).rejects.toMatchObject({ location: '/forgot-password' });
-  });
-  it('verifies token hashes for confirmation/recovery and exchanges PKCE callback codes', async () => {
-    const e = event();
-    e.url = new URL(
-      'https://app.example/auth/confirm?token_hash=fixture&type=recovery',
-    );
-    await expect(
-      confirm(e as Parameters<typeof confirm>[0]),
-    ).rejects.toMatchObject({ location: '/reset-password' });
     expect(e.locals.supabase.auth.verifyOtp).toHaveBeenCalledWith({
-      token_hash: 'fixture',
-      type: 'recovery',
+      email: 'citizen@example.test',
+      token: '012345',
+      type: 'email',
     });
-    e.url = new URL(
-      'https://app.example/auth/callback?code=fixture&next=/my-cases',
-    );
-    await expect(
-      callback(e as Parameters<typeof callback>[0]),
-    ).rejects.toMatchObject({ location: '/my-cases' });
-    expect(e.locals.supabase.auth.exchangeCodeForSession).toHaveBeenCalledWith(
-      'fixture',
-    );
+    expect(e.cookies.delete).toHaveBeenCalled();
   });
-  it('rejects expired, missing and unsupported confirmation links', async () => {
-    const e = event();
-    e.url = new URL(
-      'https://app.example/auth/confirm?token_hash=fixture&type=unsupported',
+  it('rejects invalid codes and preserves the email for expired-code retries', async () => {
+    for (const token of ['12345', '1234567', 'abcdef', '']) {
+      const e = event({ email: 'citizen@example.test', token });
+      expect(await authAction(e, 'verify')).toMatchObject({
+        status: 400,
+        data: { step: 'verify' },
+      });
+      expect(e.locals.supabase.auth.verifyOtp).not.toHaveBeenCalled();
+    }
+    const e = event({ email: 'citizen@example.test', token: '999999' });
+    vi.mocked(e.locals.supabase.auth.verifyOtp).mockResolvedValueOnce({
+      data: { session: null, user: null },
+      error: { status: 403 } as never,
+    });
+    expect(await authAction(e, 'verify')).toMatchObject({
+      data: {
+        email: 'citizen@example.test',
+        message: expect.stringContaining('expired'),
+      },
+    });
+  });
+  it('enforces app resend cooldown, supports changing email and handles delivery failures', async () => {
+    const e = event(
+      { email: 'citizen@example.test' },
+      { email: 'citizen@example.test', resendAt: Date.now() + 60000 },
     );
-    await expect(
-      confirm(e as Parameters<typeof confirm>[0]),
-    ).rejects.toMatchObject({ location: '/signin?authError=1' });
-    expect(e.locals.supabase.auth.verifyOtp).not.toHaveBeenCalled();
-    e.url = new URL('https://app.example/auth/callback');
-    await expect(
-      callback(e as Parameters<typeof callback>[0]),
-    ).rejects.toMatchObject({ location: '/signin?authError=1' });
+    expect(await authAction(e, 'send')).toMatchObject({ status: 429 });
+    expect(e.locals.supabase.auth.signInWithOtp).not.toHaveBeenCalled();
+    expect(await authAction(e, 'change')).toMatchObject({
+      step: 'email',
+      email: '',
+    });
+    expect(e.cookies.delete).toHaveBeenCalled();
+    const failed = event({ email: 'citizen@example.test' });
+    vi.mocked(failed.locals.supabase.auth.signInWithOtp).mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { status: 500 } as never,
+    });
+    expect(await authAction(failed, 'send')).toMatchObject({
+      status: 400,
+      data: { message: expect.stringContaining('could not send') },
+    });
+    expect(
+      emailChallenge({ cookies: { get: () => '{invalid' } } as never),
+    ).toBeNull();
   });
 });

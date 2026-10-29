@@ -1,7 +1,8 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { discussions } from '#lib/server/discussion.js';
 import { browseParams, UUID } from '#lib/validation.js';
-import type { CaseRecord, Screenshot } from '#lib/types.js';
+import type { CaseRecord, CaseSummary, Screenshot } from '#lib/types.js';
 export function requireUser(event: Pick<RequestEvent, 'locals' | 'url'>) {
   if (!event.locals.user)
     redirect(
@@ -19,9 +20,9 @@ export async function constitutions(db: SupabaseClient) {
   if (e) error(503, 'Constitutions are unavailable. Please retry.');
   return data;
 }
-export async function withImages(
+export async function withImages<T extends { id: string }>(
   db: SupabaseClient,
-  rows: Omit<CaseRecord, 'screenshots'>[],
+  rows: T[],
 ) {
   if (!rows.length) return [];
   const { data, error: e } = await db
@@ -52,14 +53,32 @@ export async function withImages(
   }));
 }
 export async function browse(db: SupabaseClient, url: URL, mine = false) {
-  const { data, error: e } = await db.rpc('browse_cases', {
-    ...browseParams(url),
-    p_mine: mine,
-  });
+  const { data, error: e } = await db
+    .rpc('browse_cases', {
+      ...browseParams(url),
+      p_mine: mine,
+    })
+    .select(
+      'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior',
+    );
   if (e) error(503, 'Cases could not be loaded. Please retry.');
-  const rows = data ?? [];
+  const rows = (data ?? []) as Omit<
+    CaseSummary,
+    'screenshots' | 'discussion'
+  >[];
+  const visible = rows.slice(0, 12);
+  const summaries = await discussions(
+    db,
+    visible.map((row) => row.id),
+  );
   return {
-    items: await withImages(db, rows.slice(0, 12)),
+    items: await withImages(
+      db,
+      visible.map((row) => ({
+        ...row,
+        discussion: summaries?.find((s) => s.case_id === row.id) ?? null,
+      })),
+    ),
     hasMore: rows.length > 12,
   };
 }
@@ -72,14 +91,14 @@ export async function getCase(db: SupabaseClient, id: string, owner = false) {
   const { data, error: e } = await db
     .from('cases')
     .select(
-      'id,constitution_number,description,improvement,created_at,updated_at,status,version,chat_prompt,chat_response',
+      'id,constitution_number,description,improvement,created_at,updated_at,status,version,chat_prompt,chat_response,transcript,behavior',
     )
     .eq('id', id)
     .maybeSingle();
   if (e) error(503, 'Case could not be loaded.');
   if (!data || (!owner && data.status !== 'published'))
     error(404, 'Case not found.');
-  return (await withImages(db, [data]))[0];
+  return (await withImages(db, [data]))[0] as CaseRecord;
 }
 export async function cleanup(
   db: SupabaseClient,

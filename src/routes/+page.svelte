@@ -3,10 +3,10 @@
 </script>
 
 <svelte:head>
-  <title>Constitutions · AI Constitutions</title>
+  <title>Home · AI Constitutions</title>
   <meta
     name="description"
-    content="Read the sample AI constitutions and contribute chatbot examples with proposed improvements."
+    content="Explore chatbot behavior and propose improvements to sample AI constitutions."
   />
 </svelte:head>
 
@@ -14,11 +14,11 @@
   <div class="hero-content">
     <h1>Help shape the<br />principles behind AI.</h1>
     <p class="hero-copy">
-      Read the proposed constitutions, share a real chatbot interaction, and
-      suggest what should change.
+      Explore a simulated chatbot, document behavior that matters, and suggest
+      how AI’s guiding principles could improve.
     </p>
     <div class="hero-actions">
-      <a class="button" href="/submit">Submit a Case</a>
+      <a class="button" href="/chatbot">Open Chatbot</a>
       <a class="text-link" href="/cases">Browse cases</a>
     </div>
   </div>
@@ -68,6 +68,78 @@
   </div>
 </section>
 
+<section class="workflow" aria-labelledby="workflow-heading">
+  <div class="section-heading">
+    <h2 id="workflow-heading">From conversation to contribution</h2>
+  </div>
+  <p class="section-intro">
+    Good examples and unwanted behavior both help us understand how AI
+    principles could be more useful. Here’s how to contribute.
+  </p>
+  <ol class="workflow-steps">
+    <li>
+      <h3>Sign in with an email code</h3>
+      <p>
+        <a href="/signin">Sign in or create an account</a> using a six-digit code
+        sent to your inbox. Your email stays private.
+      </p>
+    </li>
+    <li>
+      <h3>Start in Chatbot</h3>
+      <p>
+        Type messages and explore the simulated bot’s predefined replies. Open
+        Hints for topics to try. Some responses are intentionally flawed; this
+        is a space to investigate them.
+      </p>
+    </li>
+    <li>
+      <h3>Capture a case</h3>
+      <p>
+        When you find behavior worth documenting, choose “Submit a case” in
+        Chatbot. Every message so far is attached as a read-only conversation.
+        Chats disappear when you leave, so capture the case first.
+      </p>
+    </li>
+    <li>
+      <h3>Explain what should change</h3>
+      <p>
+        Review the conversation, describe what matters, choose good / wanted or
+        bad / unwanted behavior, propose a concrete improvement, and select one
+        constitution. Submit to publish your case.
+      </p>
+    </li>
+  </ol>
+  <div class="tab-guide">
+    <article>
+      <h3>Home</h3>
+      <p>
+        Return here for the contribution guide and all 11 sample constitutions.
+        Read the statements below to find the principle your example addresses.
+      </p>
+    </article>
+    <article>
+      <h3><a href="/chatbot">Chatbot</a></h3>
+      <p>
+        Explore responses in a temporary conversation and turn the entire
+        exchange into a case. An account is required to chat and contribute.
+      </p>
+    </article>
+    <article>
+      <h3><a href="/cases">All Cases</a></h3>
+      <p>
+        Browse everyone’s published cases, including wanted and unwanted
+        behavior. Search descriptions and proposals, filter by constitution,
+        change the sort order, or load more. Open a case to read its evidence
+        and suggested improvement.
+      </p>
+    </article>
+  </div>
+  <p class="helper">
+    Use Account → My Cases to find, edit, or delete your contributions. Anyone
+    can read All Cases without signing in. Public authors are labeled Anonymous.
+  </p>
+</section>
+
 <section class="principles" aria-labelledby="principles-heading">
   <div class="section-heading">
     <h2 id="principles-heading">The 11 constitutions</h2>
@@ -81,13 +153,13 @@
       <article class="constitution-card">
         <h3>Constitution #{c.number}</h3>
         <p>{c.text}</p>
-        <a href={'/submit?constitution=' + c.number}>Propose an improvement</a>
+        <a href="/chatbot">Explore in Chatbot</a>
       </article>
     {/each}
   </div>
 </section>
 
 <p class="project-note">
-  This version collects cases and proposed changes. Community review and model
-  training are planned for later.
+  This version collects cases, proposed changes, votes, and anonymous
+  discussions. Formal review and model training are planned for later.
 </p>

@@ -6,19 +6,33 @@ const enabled =
   !!process.env.TEST_SUPABASE_PUBLISHABLE_KEY &&
   !!process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
 describe.skipIf(!enabled)(
-  'isolated real Supabase: direct Auth/PostgREST/Storage requests',
+  'isolated real Supabase: OTP, direct PostgREST and Storage requests',
   () => {
     let admin: SupabaseClient,
       owner: SupabaseClient,
       other: SupabaseClient,
       anonymous: SupabaseClient;
-    const id = randomUUID();
-    let path: string;
-    const userIds: string[] = [];
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
-      'base64',
-    );
+    const id = randomUUID(),
+      users: { id: string; email: string; password: string }[] = [];
+    const transcript = [
+      { role: 'user', text: 'hello' },
+      { role: 'assistant', text: 'Hello. What would you like to talk about?' },
+    ];
+    const save = (
+      db: SupabaseClient,
+      version = 1,
+      extra: Record<string, unknown> = {},
+    ) =>
+      db.rpc('save_case', {
+        p_id: id,
+        p_version: version,
+        p_constitution: 1,
+        p_description: 'Isolated integration fixture',
+        p_improvement: 'Explain reasoning',
+        p_transcript: transcript,
+        p_behavior: 'bad',
+        ...extra,
+      });
     beforeAll(async () => {
       const url = process.env.TEST_SUPABASE_URL!;
       if (
@@ -26,7 +40,7 @@ describe.skipIf(!enabled)(
         process.env.TEST_ISOLATED_PROJECT !== '1'
       )
         throw new Error(
-          'Use a local or explicitly isolated test project. Never run on citizen submissions.',
+          'Use an explicitly isolated test project, never citizen data.',
         );
       const options = {
         auth: { persistSession: false, autoRefreshToken: false },
@@ -36,34 +50,33 @@ describe.skipIf(!enabled)(
         process.env.TEST_SUPABASE_SERVICE_ROLE_KEY!,
         options,
       );
-      anonymous = createClient(
-        url,
-        process.env.TEST_SUPABASE_PUBLISHABLE_KEY!,
-        options,
-      );
-      owner = createClient(
-        url,
-        process.env.TEST_SUPABASE_PUBLISHABLE_KEY!,
-        options,
-      );
-      other = createClient(
-        url,
-        process.env.TEST_SUPABASE_PUBLISHABLE_KEY!,
-        options,
-      );
+      const client = () =>
+        createClient(url, process.env.TEST_SUPABASE_PUBLISHABLE_KEY!, options);
+      anonymous = client();
+      owner = client();
+      other = client();
       for (const db of [owner, other]) {
         const email = 'fixture-' + randomUUID() + '@example.test',
           password = 'Fixture-' + randomUUID();
-        const { data, error } = await admin.auth.admin.createUser({
+        const created = await admin.auth.admin.createUser({
           email,
           password,
           email_confirm: true,
         });
-        expect(error).toBeNull();
-        userIds.push(data.user!.id);
-        expect(
-          (await db.auth.signInWithPassword({ email, password })).error,
-        ).toBeNull();
+        expect(created.error).toBeNull();
+        users.push({ id: created.data.user!.id, email, password });
+        const link = await admin.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+        });
+        expect(link.error).toBeNull();
+        const verified = await db.auth.verifyOtp({
+          email,
+          token: link.data.properties!.email_otp,
+          type: 'email',
+        });
+        expect(verified.error).toBeNull();
+        expect(verified.data.user?.id).toBe(created.data.user!.id);
       }
     });
     afterAll(async () => {
@@ -73,27 +86,31 @@ describe.skipIf(!enabled)(
         await owner.rpc('finish_delete', { p_id: id });
       }
       if (admin)
-        for (const uid of userIds) await admin.auth.admin.deleteUser(uid);
+        for (const user of users) await admin.auth.admin.deleteUser(user.id);
     });
-    it('rejects unauthenticated writes and constitution mutation; owns drafts privately', async () => {
+    it('rejects direct old-password login when the configured hook is active, while OTP preserves identity', async () => {
+      const db = createClient(
+        process.env.TEST_SUPABASE_URL!,
+        process.env.TEST_SUPABASE_PUBLISHABLE_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } },
+      );
+      // A failure here explicitly means hosted password rejection has not been configured.
       expect(
         (
-          await anonymous.rpc('begin_case', {
-            p_id: id,
-            p_constitution: 1,
-            p_description: 'fixture',
-            p_improvement: 'fixture',
+          await db.auth.signInWithPassword({
+            email: users[0].email,
+            password: users[0].password,
           })
         ).error,
       ).not.toBeNull();
+      expect((await owner.auth.getUser()).data.user?.id).toBe(users[0].id);
+    });
+    it('enforces atomic creation, required evidence/classification and public anonymity', async () => {
+      expect((await save(anonymous)).error).not.toBeNull();
       expect(
-        (
-          await owner
-            .from('constitutions')
-            .update({ text: 'forged' })
-            .eq('number', 1)
-        ).error,
+        (await save(owner, 1, { p_transcript: null })).error,
       ).not.toBeNull();
+      expect((await save(owner, 1, { p_behavior: null })).error).not.toBeNull();
       expect(
         (
           await owner.from('cases').insert({
@@ -104,174 +121,87 @@ describe.skipIf(!enabled)(
           })
         ).error,
       ).not.toBeNull();
+      expect((await save(owner)).error).toBeNull();
+      expect((await save(owner)).error).toBeNull();
+      const result = await anonymous.from('cases').select('*').eq('id', id);
+      expect(result.error).toBeNull();
+      expect(result.data).toHaveLength(1);
+      expect(result.data![0]).toMatchObject({ transcript, behavior: 'bad' });
+      expect(JSON.stringify(result.data)).not.toMatch(
+        /user_id|owner_id|@example.test/,
+      );
+      for (const user of users)
+        expect(JSON.stringify(result.data)).not.toContain(user.id);
       expect(
-        (
-          await owner.rpc('begin_case', {
-            p_id: id,
-            p_constitution: 1,
-            p_description: 'Isolated integration fixture',
-            p_improvement: 'Explain reasoning',
-          })
-        ).error,
-      ).toBeNull();
-      expect(
-        (await anonymous.from('cases').select('*').eq('id', id)).data,
-      ).toEqual([]);
-      expect(
-        (
-          await other.rpc('reserve_upload', {
-            p_case: id,
-            p_mime: 'image/png',
-            p_size: png.length,
-          })
-        ).error,
-      ).not.toBeNull();
-      const reserved = await owner.rpc('reserve_upload', {
-        p_case: id,
-        p_mime: 'image/png',
-        p_size: png.length,
-      });
-      expect(reserved.error).toBeNull();
-      path = reserved.data;
-      expect(userIds.every((uid) => !path.includes(uid))).toBe(true);
-    });
-    it('enforces real Storage bucket types, size, private drafts, and immutable ownership', async () => {
-      expect(
-        (
-          await other.storage
-            .from('screenshots')
-            .upload(path, png, { contentType: 'image/png' })
-        ).error,
-      ).not.toBeNull();
-      expect(
-        (
-          await owner.storage
-            .from('screenshots')
-            .upload(path, png, { contentType: 'image/png' })
-        ).error,
-      ).toBeNull();
-      expect(
-        (await anonymous.storage.from('screenshots').createSignedUrl(path, 60))
+        (await anonymous.schema('private').from('case_owners').select('*'))
           .error,
       ).not.toBeNull();
-      const oversized = await owner.rpc('reserve_upload', {
-        p_case: id,
-        p_mime: 'image/png',
-        p_size: 10485760,
-      });
-      expect(oversized.error).toBeNull();
+    });
+    it('rejects other-owner mutations, immutable transcript replacement and new screenshot writes', async () => {
+      expect((await save(other, 2)).error).not.toBeNull();
+      expect(
+        (await other.rpc('begin_delete', { p_id: id })).error,
+      ).not.toBeNull();
       expect(
         (
-          await owner.storage
-            .from('screenshots')
-            .upload(oversized.data, new Uint8Array(10485761), {
-              contentType: 'image/png',
-            })
+          await save(owner, 2, {
+            p_transcript: [
+              { role: 'user', text: 'changed' },
+              { role: 'assistant', text: 'changed' },
+            ],
+          })
         ).error,
       ).not.toBeNull();
       expect(
         (
           await owner.rpc('reserve_upload', {
             p_case: id,
-            p_mime: 'image/svg+xml',
-            p_size: 20,
+            p_mime: 'image/png',
+            p_size: 68,
           })
         ).error,
-      ).not.toBeNull();
-      expect(
-        (
-          await other.storage
-            .from('screenshots')
-            .upload(path, png, { contentType: 'image/png', upsert: true })
-        ).error,
-      ).not.toBeNull();
-      await other.storage.from('screenshots').remove([path]);
-      expect(
-        (await owner.storage.from('screenshots').download(path)).error,
-      ).toBeNull();
-    });
-    it('publishes only complete evidence and exposes no author identity through public APIs', async () => {
-      expect(
-        (
-          await owner.rpc('commit_case', {
-            p_id: id,
-            p_version: 1,
-            p_constitution: 1,
-            p_description: 'Isolated integration fixture',
-            p_improvement: 'Explain reasoning',
-            p_paths: [path],
-          })
-        ).error,
-      ).toBeNull();
-      const response = await anonymous.from('cases').select('*').eq('id', id);
-      expect(response.error).toBeNull();
-      expect(response.data).toHaveLength(1);
-      expect(Object.keys(response.data![0])).not.toEqual(
-        expect.arrayContaining(['owner_id', 'user_id', 'email']),
-      );
-      for (const uid of userIds)
-        expect(JSON.stringify(response.data)).not.toContain(uid);
-      expect(
-        (await anonymous.storage.from('screenshots').createSignedUrl(path, 60))
-          .error,
-      ).toBeNull();
-      expect(
-        (await anonymous.schema('private').from('case_owners').select('*'))
-          .error,
-      ).not.toBeNull();
-      expect(
-        (await anonymous.rpc('pending_paths', { p_case: id })).error,
-      ).not.toBeNull();
-    });
-    it('rejects the second account’s case/evidence mutations and allows owner editing and full deletion', async () => {
-      expect(
-        (
-          await other.rpc('commit_case', {
-            p_id: id,
-            p_version: 2,
-            p_constitution: 2,
-            p_description: 'forged',
-            p_improvement: 'forged',
-            p_paths: [path],
-          })
-        ).error,
-      ).not.toBeNull();
-      expect(
-        (await other.rpc('begin_delete', { p_id: id })).error,
       ).not.toBeNull();
       expect(
         (await other.from('case_screenshots').delete().eq('case_id', id)).error,
       ).not.toBeNull();
       expect(
         (
-          await owner.rpc('commit_case', {
-            p_id: id,
-            p_version: 2,
-            p_constitution: 2,
+          await other.storage
+            .from('screenshots')
+            .upload(
+              id + '/' + randomUUID() + '.png',
+              new Uint8Array([1, 2, 3]),
+              { contentType: 'image/png' },
+            )
+        ).error,
+      ).not.toBeNull();
+      expect(
+        (
+          await owner
+            .from('constitutions')
+            .update({ text: 'forged' })
+            .eq('number', 1)
+        ).error,
+      ).not.toBeNull();
+    });
+    it('persists owner edits/classification and deletes the case completely', async () => {
+      expect(
+        (
+          await save(owner, 2, {
+            p_behavior: 'good',
             p_description: 'Updated integration fixture',
-            p_improvement: 'Explain uncertainty',
-            p_paths: [path],
           })
         ).error,
       ).toBeNull();
+      expect(
+        (await anonymous.from('cases').select('behavior').eq('id', id).single())
+          .data?.behavior,
+      ).toBe('good');
       expect((await owner.rpc('begin_delete', { p_id: id })).error).toBeNull();
       expect(
         (await anonymous.from('cases').select('*').eq('id', id)).data,
       ).toEqual([]);
-      expect(
-        (await owner.rpc('finish_delete', { p_id: id })).error,
-      ).not.toBeNull();
-      expect(
-        (await owner.storage.from('screenshots').remove([path])).error,
-      ).toBeNull();
       expect((await owner.rpc('finish_delete', { p_id: id })).error).toBeNull();
-      expect(
-        (await anonymous.from('case_screenshots').select('*').eq('case_id', id))
-          .data,
-      ).toEqual([]);
-      expect(
-        (await anonymous.storage.from('screenshots').download(path)).error,
-      ).not.toBeNull();
     });
   },
 );
