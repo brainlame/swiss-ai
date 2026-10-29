@@ -1,3 +1,15 @@
+# Continuous selections and issue terminology — 2026-10-29
+
+This update adds a continuous conversation selector and renames the public product terminology from cases to issues. The selector starts with the latest complete exchange and lets users choose the first and last exchange, with every message between them included. Select all remains available. Highlighted messages are frozen as read-only issue evidence.
+
+The user chose full-chat restoration. Back to chat in the attached-conversation area restores all messages, the selected range, and any unsent chat draft. Returning to the issue form keeps description, proposal, constitution and behavior fields. Only the chosen section is submitted; unselected context stays in temporary browser memory. Leaving the Chatbot/form workflow, signing out, refreshing, or completing submission clears that context. Existing saved evidence remains immutable. A changed attachment receives a new submission ID while unchanged retries preserve the ID.
+
+Canonical pages are `/issues`, `/issues/[id]`, `/issues/[id]/edit`, and `/my-issues`, with `/api/issues` for browsing/discussion. Old `/cases` and `/my-cases` links redirect with query parameters, and old API endpoints remain compatible. SQL tables/RPCs and Prisma names remain unchanged to preserve existing data and permissions. No new migration or environment variable is needed.
+
+Verification for this update passed: 89 unit tests, 17 isolated PostgreSQL tests, and all 80 browser scenarios across desktop/mobile light/dark, including continuous selection, full-chat/draft restoration, route/API compatibility, and the existing authentication/chatbot/issue CRUD/discussion regressions. Formatting, TypeScript/Svelte (zero errors or warnings), Prisma validation, and Node/Vercel production builds also passed. Visual inspection covered the selection controls and highlights in normal and compact viewports. Four optional real hosted-Supabase integration tests remain skipped because isolated administrator credentials are not provided. No hosted data or deployment has been changed.
+
+---
+
 # Voting and comments update — 2026-10-29
 
 All Cases now uses wider reading cards modeled on the supplied reference: a green/red results bar, Upvote/Downvote buttons with selected states, a public comment box, two anonymous comment previews, expandable threads, and Open case at the bottom right. The detail page shares the same voting/discussion component. Upvotes highlight useful cases; they do not approve constitutional changes or classify model behavior.

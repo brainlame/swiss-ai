@@ -61,7 +61,7 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
     .select(
       'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior',
     );
-  if (e) error(503, 'Cases could not be loaded. Please retry.');
+  if (e) error(503, 'Issues could not be loaded. Please retry.');
   const rows = (data ?? []) as Omit<
     CaseSummary,
     'screenshots' | 'discussion'
@@ -83,10 +83,10 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
   };
 }
 export async function getCase(db: SupabaseClient, id: string, owner = false) {
-  if (!UUID.test(id)) error(404, 'Case not found.');
+  if (!UUID.test(id)) error(404, 'Issue not found.');
   if (owner) {
     const { data, error: e } = await db.rpc('owns_case', { p_id: id });
-    if (e || !data) error(403, 'Only the owner can manage this case.');
+    if (e || !data) error(403, 'Only the owner can manage this issue.');
   }
   const { data, error: e } = await db
     .from('cases')
@@ -95,9 +95,9 @@ export async function getCase(db: SupabaseClient, id: string, owner = false) {
     )
     .eq('id', id)
     .maybeSingle();
-  if (e) error(503, 'Case could not be loaded.');
+  if (e) error(503, 'Issue could not be loaded.');
   if (!data || (!owner && data.status !== 'published'))
-    error(404, 'Case not found.');
+    error(404, 'Issue not found.');
   return (await withImages(db, [data]))[0] as CaseRecord;
 }
 export async function cleanup(

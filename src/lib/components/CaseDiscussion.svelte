@@ -52,19 +52,16 @@
   let deleteDialog: HTMLDialogElement;
   let now = $state(Date.now());
   let replyInput = $state<HTMLTextAreaElement>();
-  let lastInitial = untrack(() => initial);
   $effect(() => {
-    if (initial !== lastInitial) {
-      lastInitial = initial;
-      discussion = initial;
-      comments = initial?.preview ?? [];
-      expanded = false;
-      threads = {};
-      rootsError = '';
-      error = '';
-    }
+    const incoming = initial;
+    discussion = incoming;
+    comments = incoming?.preview ?? [];
+    expanded = false;
+    threads = {};
+    rootsError = '';
+    error = '';
   });
-  const endpoint = $derived('/api/cases/' + caseId + '/discussion');
+  const endpoint = $derived('/api/issues/' + caseId + '/discussion');
   const totalVotes = $derived(
     (discussion?.upvotes ?? 0) + (discussion?.downvotes ?? 0),
   );
@@ -335,7 +332,7 @@
   }
 </script>
 
-<section class="case-discussion" aria-label="Case voting and discussion">
+<section class="case-discussion" aria-label="Issue voting and discussion">
   {#if discussion}
     <div
       class="vote-bar"
@@ -356,7 +353,7 @@
         >{discussion.downvotes} down · {totalVotes ? 100 - upPercent : 0}%</span
       >
     </div>
-    <div class="vote-choices" role="group" aria-label="Is this case useful?">
+    <div class="vote-choices" role="group" aria-label="Is this issue useful?">
       <button
         type="button"
         class="vote-choice upvote"
@@ -396,7 +393,7 @@
       >
     </div>
     <p class="vote-help">
-      Is this a useful case worth highlighting? {discussion.my_vote
+      Is this a useful issue worth highlighting? {discussion.my_vote
         ? 'Select your vote again to remove it.'
         : ''}
     </p>

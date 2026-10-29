@@ -33,11 +33,11 @@ test('homepage, persistent keyboard tabs, safe-area layout and remembered theme'
     ),
   ).toBe(true);
   await page.screenshot({ path: info.outputPath('home.png'), fullPage: true });
-  const cases = nav.getByRole('link', { name: 'All Cases', exact: true });
-  await cases.focus();
+  const issues = nav.getByRole('link', { name: 'All Issues', exact: true });
+  await issues.focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/cases$/);
-  await expect(cases).toHaveAttribute('aria-current', 'page');
+  await expect(page).toHaveURL(/\/issues$/);
+  await expect(issues).toHaveAttribute('aria-current', 'page');
   await page.getByRole('button', { name: /Switch to .* mode/ }).click();
   const theme = await page.locator('html').getAttribute('data-theme');
   await page.reload();
@@ -47,7 +47,7 @@ test('protected access, legacy submission redirects and owner account destinatio
   page,
   request,
 }) => {
-  for (const path of ['/chatbot', '/my-cases']) {
+  for (const path of ['/chatbot', '/my-issues']) {
     const response = await request.get(path, { maxRedirects: 0 });
     expect(response.status()).toBe(303);
     expect(response.headers().location).toBe(
@@ -56,11 +56,11 @@ test('protected access, legacy submission redirects and owner account destinatio
   }
   const legacy = await request.get('/submit', { maxRedirects: 0 });
   expect(legacy.headers().location).toBe('/chatbot');
-  await signin(page, 'citizen@fixtures.invalid', '/my-cases');
+  await signin(page, 'citizen@fixtures.invalid', '/my-issues');
   await expect(page.locator('.case-card')).toHaveCount(12);
   await page.getByRole('button', { name: 'Account', exact: true }).click();
   await expect(
-    page.getByRole('link', { name: 'My Cases', exact: true }),
+    page.getByRole('link', { name: 'My Issues', exact: true }),
   ).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(
@@ -71,7 +71,7 @@ test('public database browsing, search, filter, sort, load more and safe citizen
   page,
   request,
 }, info) => {
-  await page.goto('/cases');
+  await page.goto('/issues');
   await expect(page.locator('.case-card')).toHaveCount(12);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(24);
@@ -84,7 +84,7 @@ test('public database browsing, search, filter, sort, load more and safe citizen
     .locator('.case-card h2 a')
     .evaluateAll((els: any) => els.map((e: any) => e.href));
   expect(new Set(links).size).toBe(26);
-  await page.getByLabel('Search cases').fill('uncertainty');
+  await page.getByLabel('Search issues').fill('uncertainty');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Reset filters' })).toBeVisible();
@@ -104,13 +104,13 @@ test('public database browsing, search, filter, sort, load more and safe citizen
       (t) => t === 'Constitution #2',
     ),
   ).toBe(true);
-  const response = await request.get('/api/cases');
+  const response = await request.get('/api/issues');
   const publicBody = await response.text();
   expect(publicBody).not.toMatch(
     /owner_id|user_id|@fixtures\.invalid|11111111-1111/,
   );
   await page.screenshot({
-    path: info.outputPath('cases.png'),
+    path: info.outputPath('issues.png'),
     fullPage: true,
   });
 });
@@ -118,7 +118,7 @@ test('public database browsing, search, filter, sort, load more and safe citizen
 test('historical evidence remains visible and unclassified; another user cannot manage it', async ({
   page,
 }, info) => {
-  const path = '/cases/eeeeeeee-0000-4000-8000-000000000001';
+  const path = '/issues/eeeeeeee-0000-4000-8000-000000000001';
   await page.goto(path);
   await expect(page.locator('.behavior-label')).toHaveText('Unclassified');
   await page.getByRole('button', { name: 'Enlarge screenshot 1' }).click();
@@ -126,15 +126,15 @@ test('historical evidence remains visible and unclassified; another user cannot 
     page.getByRole('dialog', { name: 'Enlarged screenshot', exact: true }),
   ).toBeVisible();
   await page.keyboard.press('Escape');
-  await signin(page, 'other@fixtures.invalid', '/my-cases');
+  await signin(page, 'other@fixtures.invalid', '/my-issues');
   await expect(page.locator('.case-card')).toHaveCount(0);
   await page.goto(path);
   await expect(
-    page.getByRole('link', { name: 'Edit case', exact: true }),
+    page.getByRole('link', { name: 'Edit issue', exact: true }),
   ).toHaveCount(0);
   await page.goto(path + '/edit');
   await expect(
-    page.getByText('Only the owner can manage this case.'),
+    page.getByText('Only the owner can manage this issue.'),
   ).toBeVisible();
   await page.screenshot({
     path: info.outputPath('historical-permissions.png'),
@@ -144,9 +144,9 @@ test('historical evidence remains visible and unclassified; another user cannot 
 test('load-more failures retain results and allow retry; no-match filters reset', async ({
   page,
 }) => {
-  await page.goto('/cases');
+  await page.goto('/issues');
   let failOnce = true;
-  await page.route('**/api/cases?**', async (route) => {
+  await page.route('**/api/issues?**', async (route) => {
     if (failOnce) {
       failOnce = false;
       await route.fulfill({
@@ -161,10 +161,10 @@ test('load-more failures retain results and allow retry; no-match filters reset'
   await expect(page.locator('.case-card')).toHaveCount(12);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(24);
-  await page.getByLabel('Search cases').fill('there is no such fixture');
+  await page.getByLabel('Search issues').fill('there is no such fixture');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'No matching cases' }),
+    page.getByRole('heading', { name: 'No matching issues' }),
   ).toBeVisible();
   await page
     .locator('.filter-bar')

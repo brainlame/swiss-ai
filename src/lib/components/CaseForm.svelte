@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, beforeNavigate } from '$app/navigation';
   import {
     validateText,
     validateTranscript,
@@ -10,6 +10,9 @@
   import ChatEvidence from '#lib/components/ChatEvidence.svelte';
   import {
     takeConversation,
+    issueDraft,
+    rememberIssueDraft,
+    discardIssueFlow,
     evidenceFor,
     type Transcript,
   } from '#lib/chat-evidence.js';
@@ -38,12 +41,29 @@
     if (!item) {
       transcript = takeConversation();
       if (!transcript) {
-        void goto('/chatbot?evidence=missing', { replaceState: true });
+        void goto('/chatbot?evidence=missing', { replace: true });
         return;
       }
-      id = crypto.randomUUID();
+      const saved = issueDraft();
+      if (saved) {
+        description = saved.description;
+        improvement = saved.improvement;
+        constitution = saved.constitution;
+        behavior = saved.behavior;
+      }
+      id = saved?.id || crypto.randomUUID();
     }
     ready = true;
+  });
+  beforeNavigate(({ to }) => {
+    if (!item && ready && to?.url.pathname === '/chatbot')
+      rememberIssueDraft({
+        id,
+        description,
+        improvement,
+        constitution,
+        behavior,
+      });
   });
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -75,7 +95,8 @@
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.message ?? 'Could not save. Please retry.');
-      done = '/cases/' + result.id;
+      done = '/issues/' + result.id;
+      if (!item) discardIssueFlow();
       await goto(done);
     } catch (e) {
       message = (e as Error).message;
@@ -87,25 +108,29 @@
 
 {#if item?.status === 'deleting'}
   <p class="notice error" role="alert">
-    This case is hidden while deletion is pending. Retry to finish removing its
+    This issue is hidden while deletion is pending. Retry to finish removing its
     evidence.
   </p>
-  <form action={'/cases/' + item.id + '?/delete'} method="POST">
+  <form action={'/issues/' + item.id + '?/delete'} method="POST">
     <button class="button danger">Retry deletion</button>
   </form>
 {:else if !item && !ready}
   <p class="notice" role="status">
     Opening your conversation snapshot… If it is unavailable, <a href="/chatbot"
       >return to Chatbot</a
-    > to start a case.
+    > to start an issue.
   </p>
 {:else}
   <form class="case-form" onsubmit={submit}>
-    {#if evidence}<ChatEvidence transcript={evidence} />
+    {#if evidence}<ChatEvidence
+        transcript={evidence}
+        onback={!item ? () => goto('/chatbot') : undefined}
+        backDisabled={busy}
+      />
       <p class="notice">
-        This entire conversation will be public. If it contains identifying
+        Only the attached selection will be public. If it contains identifying
         information, return to <a href="/chatbot">Chatbot</a> and use anonymized messages
-        before starting a case.
+        before starting an issue.
       </p>
     {/if}
     {#if item?.screenshots.length}<section
@@ -154,12 +179,12 @@
           /> Good / wanted behavior</label
         >
         {#if initial && !initial.behavior}<p class="helper">
-            This historical case is unclassified. Choose a classification to
+            This historical issue is unclassified. Choose a classification to
             save your changes.
           </p>{/if}
       </fieldset>
     </section>
-    <section class="form-section" aria-label="Case context">
+    <section class="form-section" aria-label="Issue context">
       <div class="field-body">
         <label id="description-label" for="description"
           >Description <span class="required" aria-hidden="true">Required</span
@@ -167,7 +192,7 @@
         >
         <p class="helper" id="description-help">
           What happened, and why does it matter? Explain which parts of the
-          conversation support your case.
+          conversation support your issue.
         </p>
         <textarea
           id="description"
@@ -235,16 +260,16 @@
     </section>
 
     {#if message}<p class="notice error" role="alert">{message}</p>{/if}
-    {#if busy}<p role="status">Saving your case…</p>{/if}
+    {#if busy}<p role="status">Saving your issue…</p>{/if}
     {#if done}<p class="notice success" role="status">
-        Your case is saved. <a href={done}>Open your case</a>
+        Your issue is saved. <a href={done}>Open your issue</a>
       </p>{/if}
     <div class="form-footer">
       <p class="muted">
-        Your case will be public.<br />Your account details stay private.
+        Your issue will be public.<br />Your account details stay private.
       </p>
       <button class="button" disabled={busy || !!done || !ready}
-        >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit case'}</button
+        >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit issue'}</button
       >
     </div>
   </form>

@@ -19,7 +19,7 @@
     </p>
     <div class="hero-actions">
       <a class="button" href="/chatbot">Open Chatbot</a>
-      <a class="text-link" href="/cases">Browse cases</a>
+      <a class="text-link" href="/issues">Browse issues</a>
     </div>
   </div>
   <div class="hero-art" aria-hidden="true">
@@ -93,11 +93,12 @@
       </p>
     </li>
     <li>
-      <h3>Capture a case</h3>
+      <h3>Capture an issue</h3>
       <p>
-        When you find behavior worth documenting, choose “Submit a case” in
-        Chatbot. Every message so far is attached as a read-only conversation.
-        Chats disappear when you leave, so capture the case first.
+        When you find behavior worth documenting, choose “Submit an issue” in
+        Chatbot. Choose a first and last exchange to attach a continuous section
+        as read-only evidence. Use Back to chat in the form to adjust the
+        selection without losing the rest of your chat.
       </p>
     </li>
     <li>
@@ -105,7 +106,7 @@
       <p>
         Review the conversation, describe what matters, choose good / wanted or
         bad / unwanted behavior, propose a concrete improvement, and select one
-        constitution. Submit to publish your case.
+        constitution. Submit to publish your issue.
       </p>
     </li>
   </ol>
@@ -120,23 +121,24 @@
     <article>
       <h3><a href="/chatbot">Chatbot</a></h3>
       <p>
-        Explore responses in a temporary conversation and turn the entire
-        exchange into a case. An account is required to chat and contribute.
+        Explore responses in a temporary conversation and select the section to
+        document as an issue. An account is required to chat and contribute.
       </p>
     </article>
     <article>
-      <h3><a href="/cases">All Cases</a></h3>
+      <h3><a href="/issues">All Issues</a></h3>
       <p>
-        Browse everyone’s published cases, including wanted and unwanted
+        Browse everyone’s published issues, including wanted and unwanted
         behavior. Search descriptions and proposals, filter by constitution,
-        change the sort order, or load more. Open a case to read its evidence
+        change the sort order, or load more. Open an issue to read its evidence
         and suggested improvement.
       </p>
     </article>
   </div>
   <p class="helper">
-    Use Account → My Cases to find, edit, or delete your contributions. Anyone
-    can read All Cases without signing in. Public authors are labeled Anonymous.
+    Use Account → My Issues to find, edit, or delete your contributions. Anyone
+    can read All Issues without signing in. Public authors are labeled
+    Anonymous.
   </p>
 </section>
 
@@ -160,6 +162,6 @@
 </section>
 
 <p class="project-note">
-  This version collects cases, proposed changes, votes, and anonymous
+  This version collects issues, proposed changes, votes, and anonymous
   discussions. Formal review and model training are planned for later.
 </p>

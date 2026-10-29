@@ -64,3 +64,72 @@ describe('immutable full conversation snapshots', () => {
     expect(() => validateBehavior('bad')).not.toThrow();
   });
 });
+
+describe('continuous issue selections and Back to chat', () => {
+  const full = Array.from({ length: 4 }, (_, i) => [
+    { role: 'user' as const, text: 'Prompt ' + i },
+    { role: 'assistant' as const, text: 'Reply ' + i },
+  ]).flat();
+  it('slices inclusive whole exchanges without gaps or extra context', async () => {
+    const { selectConversation } = await import('../../src/lib/chat-evidence');
+    expect(selectConversation(full, { start: 1, end: 2 })).toEqual(
+      full.slice(2, 6),
+    );
+    expect(selectConversation(full, { start: 2, end: 2 })).toEqual(
+      full.slice(4, 6),
+    );
+    for (const range of [
+      { start: -1, end: 1 },
+      { start: 2, end: 1 },
+      { start: 0, end: 4 },
+      { start: 0.5, end: 1 },
+      { start: NaN, end: 1 },
+    ])
+      expect(() => selectConversation(full, range)).toThrow();
+    expect(() =>
+      selectConversation(full.slice(0, 3), { start: 0, end: 0 }),
+    ).toThrow();
+  });
+  it('returns the whole chat, original selection and unsent message, while submitting only the selected section', async () => {
+    const { returnToConversation, discardIssueFlow } =
+      await import('../../src/lib/chat-evidence');
+    discardIssueFlow();
+    attachConversation(full, { start: 1, end: 2 }, 'Unsent message');
+    expect(takeConversation()).toEqual(full.slice(2, 6));
+    expect(returnToConversation()).toEqual({
+      messages: full,
+      range: { start: 1, end: 2 },
+      draft: 'Unsent message',
+    });
+    clearConversation();
+    expect(returnToConversation()?.messages).toHaveLength(8);
+    discardIssueFlow();
+    expect(returnToConversation()).toBeNull();
+    expect(takeConversation()).toBeNull();
+  });
+  it('preserves form fields and retry IDs, but changes the ID when changing the attachment', async () => {
+    const { rememberIssueDraft, issueDraft, discardIssueFlow } =
+      await import('../../src/lib/chat-evidence');
+    discardIssueFlow();
+    attachConversation(full, { start: 1, end: 2 });
+    takeConversation();
+    rememberIssueDraft({
+      id: 'retry-id',
+      description: 'Description',
+      improvement: 'Proposal',
+      constitution: 4,
+      behavior: 'good',
+    });
+    attachConversation(full, { start: 1, end: 2 });
+    expect(issueDraft()?.id).toBe('retry-id');
+    attachConversation(full, { start: 0, end: 1 });
+    expect(issueDraft()).toMatchObject({
+      id: '',
+      description: 'Description',
+      constitution: 4,
+      behavior: 'good',
+    });
+    discardIssueFlow();
+    expect(issueDraft()).toBeNull();
+  });
+});

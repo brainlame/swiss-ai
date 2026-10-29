@@ -25,13 +25,13 @@
 
 <svelte:head
   ><title
-    >A citizen case · Constitution #{data.item.constitution_number} · AI Constitutions</title
+    >A citizen issue · Constitution #{data.item.constitution_number} · AI Constitutions</title
   ></svelte:head
 >
 <div class="detail-layout">
   <div class="detail-main">
-    <a class="back-link" href="/cases" data-sveltekit-preload-data="off">
-      All Cases</a
+    <a class="back-link" href="/issues" data-sveltekit-preload-data="false">
+      All Issues</a
     >
     <div class="detail-top">
       <span class="pill">Constitution #{data.item.constitution_number}</span
@@ -41,7 +41,7 @@
         ></span
       >
     </div>
-    <h1>Case details</h1>
+    <h1>Issue details</h1>
     <p class="behavior-label" class:good={data.item.behavior === 'good'}>
       {behaviorLabel(data.item.behavior)}
     </p>
@@ -57,7 +57,7 @@
         {form.message}
       </p>{/if}
     {#if data.item.status === 'deleting'}<p class="notice error">
-        This case is hidden while image deletion is pending. Retry deletion
+        This issue is hidden while image deletion is pending. Retry deletion
         below.
       </p>{/if}
     <section class="detail-section">
@@ -96,12 +96,12 @@
           />{/key}
       </section>{/if}
     {#if data.owns}<div class="owner-actions">
-        <a class="button secondary" href={'/cases/' + data.item.id + '/edit'}
-          >Edit case</a
+        <a class="button secondary" href={'/issues/' + data.item.id + '/edit'}
+          >Edit issue</a
         ><button
           class="text-button danger-text"
           disabled={!ready}
-          onclick={() => confirmDialog.showModal()}>Delete case</button
+          onclick={() => confirmDialog.showModal()}>Delete issue</button
         >
       </div>{/if}
   </div>
@@ -146,9 +146,9 @@
   class="confirm-dialog"
   aria-labelledby="delete-heading"
 >
-  <h2 id="delete-heading">Delete this case?</h2>
+  <h2 id="delete-heading">Delete this issue?</h2>
   <p>
-    This removes your case and all its attached evidence. This action cannot be
+    This removes your issue and all its attached evidence. This action cannot be
     undone.
   </p>
   <form
@@ -168,9 +168,9 @@
         type="button"
         class="button secondary"
         disabled={deleting}
-        onclick={() => confirmDialog.close()}>Keep case</button
+        onclick={() => confirmDialog.close()}>Keep issue</button
       ><button class="button danger" disabled={deleting}
-        >{deleting ? 'Deleting…' : 'Delete case'}</button
+        >{deleting ? 'Deleting…' : 'Delete issue'}</button
       >
     </div>
   </form>

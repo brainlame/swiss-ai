@@ -235,7 +235,11 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
   await send(page, 'What is the capital of Australia?');
   const originals = await page.locator('.chat-message p').allTextContents();
   await page
-    .getByRole('button', { name: 'Submit a case', exact: true })
+    .getByRole('button', { name: 'Submit an issue', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Continue to issue', exact: true })
     .click();
   await expect(page).toHaveURL(/\/submit\?source=chatbot$/);
   const evidence = page.getByRole('region', { name: 'Attached conversation' });
@@ -274,14 +278,14 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
       });
     } else await route.continue();
   });
-  await page.getByRole('button', { name: 'Submit case', exact: true }).click();
+  await page.getByRole('button', { name: 'Submit issue', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('connection interrupted');
   await expect(page.getByLabel('Description', { exact: false })).toHaveValue(
     description,
   );
   await expect(evidence.locator('article')).toHaveCount(4);
-  await page.getByRole('button', { name: 'Submit case', exact: true }).click();
-  await expect(page).toHaveURL(/\/cases\/[a-f0-9-]+$/);
+  await page.getByRole('button', { name: 'Submit issue', exact: true }).click();
+  await expect(page).toHaveURL(/\/issues\/[a-f0-9-]+$/);
   const detail = page.url();
   await expect(evidence.locator('article')).toHaveCount(4);
   await expect(page.locator('.behavior-label')).toHaveText(
@@ -292,7 +296,7 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
     fullPage: true,
   });
   const result = await (
-    await request.get('/api/cases?q=' + encodeURIComponent(description))
+    await request.get('/api/issues?q=' + encodeURIComponent(description))
   ).json();
   expect(result.items).toHaveLength(1);
   expect(result.items[0].transcript).toBeUndefined();
@@ -309,10 +313,10 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
       .locator('article'),
   ).toHaveCount(4);
   await expect(
-    visitor.getByRole('link', { name: 'Edit case', exact: true }),
+    visitor.getByRole('link', { name: 'Edit issue', exact: true }),
   ).toHaveCount(0);
   await publicContext.close();
-  await page.getByRole('link', { name: 'Edit case', exact: true }).click();
+  await page.getByRole('link', { name: 'Edit issue', exact: true }).click();
   await expect(evidence.locator('article')).toHaveCount(4);
   await page
     .getByLabel('Description', { exact: false })
@@ -326,12 +330,12 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
   await expect(page.locator('.behavior-label')).toHaveText(
     'Bad / unwanted behavior',
   );
-  await page.getByRole('button', { name: 'Delete case', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete issue', exact: true }).click();
   await page
-    .getByRole('dialog', { name: 'Delete this case?' })
-    .getByRole('button', { name: 'Delete case', exact: true })
+    .getByRole('dialog', { name: 'Delete this issue?' })
+    .getByRole('button', { name: 'Delete issue', exact: true })
     .click();
-  await expect(page).toHaveURL(/\/my-cases\?deleted=1$/);
+  await expect(page).toHaveURL(/\/my-issues\?deleted=1$/);
   await page.goto(detail);
   await expect(
     page.getByRole('heading', { name: 'Page not found' }),
@@ -343,13 +347,17 @@ test('chatbot: missing or refreshed snapshots return to Chatbot with guidance', 
 }) => {
   await signIn(page);
   await expect(
-    page.getByRole('button', { name: 'Submit a case', exact: true }),
+    page.getByRole('button', { name: 'Submit an issue', exact: true }),
   ).toBeDisabled();
   await page.goto('/submit');
   await expect(page).toHaveURL(/\/chatbot$/);
   await send(page, 'xyzzy');
   await page
-    .getByRole('button', { name: 'Submit a case', exact: true })
+    .getByRole('button', { name: 'Submit an issue', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Continue to issue', exact: true })
     .click();
   await expect(
     page.getByRole('region', { name: 'Attached conversation' }),

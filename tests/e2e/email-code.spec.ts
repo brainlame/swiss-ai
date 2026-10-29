@@ -7,18 +7,18 @@ test('email codes: existing and new accounts, leading zero, verified session, si
     'citizen@fixtures.invalid',
     'new-' + Date.now() + '@fixtures.invalid',
   ]) {
-    await signin(page, email, '/my-cases');
+    await signin(page, email, '/my-issues');
     if (email.startsWith('citizen'))
       await expect(page.locator('.case-card')).not.toHaveCount(0);
     else await expect(page.locator('.case-card')).toHaveCount(0);
     await page.reload();
-    await expect(page).toHaveURL(/\/my-cases$/);
+    await expect(page).toHaveURL(/\/my-issues$/);
     await page.getByRole('button', { name: 'Account', exact: true }).click();
     await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
     const response = await page
       .context()
-      .request.get('/my-cases', { maxRedirects: 0 });
+      .request.get('/my-issues', { maxRedirects: 0 });
     expect(response.status()).toBe(303);
   }
   for (const path of ['/signup', '/reset-password', '/forgot-password']) {

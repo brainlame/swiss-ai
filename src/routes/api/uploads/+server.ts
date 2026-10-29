@@ -3,5 +3,5 @@ import { error } from '@sveltejs/kit';
 export const POST = async () =>
   error(
     410,
-    'Screenshot submissions have been retired. Start a case from Chatbot.',
+    'Screenshot submissions have been retired. Start an issue from Chatbot.',
   );

@@ -6,15 +6,15 @@ test.beforeEach(async ({ request }) => {
     true,
   );
 });
-test('public case cards show voting, anonymous relative-time comments and paginated threads', async ({
+test('public issue cards show voting, anonymous relative-time comments and paginated threads', async ({
   page,
   request,
 }, info) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/cases');
+  await page.goto('/issues');
   const card = page
-    .getByRole('article', { name: 'Citizen case', exact: true })
+    .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   await expect(
     card.getByRole('button', { name: 'Upvote', exact: true }),
@@ -66,13 +66,13 @@ test('public case cards show voting, anonymous relative-time comments and pagina
     ),
   ).toBe(true);
   await card.screenshot({ path: info.outputPath('case-discussion-feed.png') });
-  const publicBody = await (await request.get('/api/cases')).text();
+  const publicBody = await (await request.get('/api/issues')).text();
   expect(publicBody).not.toMatch(
     /user_id|owner_id|@fixtures.invalid|11111111-1111/,
   );
-  await card.getByRole('link', { name: 'Open case', exact: true }).click();
-  await expect(page).toHaveURL('/cases/' + caseId);
-  await expect(page).toHaveURL('/cases/' + caseId);
+  await card.getByRole('link', { name: 'Open issue', exact: true }).click();
+  await expect(page).toHaveURL('/issues/' + caseId);
+  await expect(page).toHaveURL('/issues/' + caseId);
   await expect(
     page.getByRole('heading', { name: 'Community discussion' }),
   ).toBeVisible();
@@ -87,9 +87,9 @@ test('public case cards show voting, anonymous relative-time comments and pagina
 test('signed-in votes toggle, persist and stay synchronized between cards and detail', async ({
   page,
 }) => {
-  await signin(page, 'citizen@fixtures.invalid', '/cases');
+  await signin(page, 'citizen@fixtures.invalid', '/issues');
   const card = page
-    .getByRole('article', { name: 'Citizen case', exact: true })
+    .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   const up = card.getByRole('button', { name: 'Upvote', exact: true }),
     down = card.getByRole('button', { name: 'Downvote', exact: true });
@@ -100,8 +100,8 @@ test('signed-in votes toggle, persist and stay synchronized between cards and de
   await down.click();
   await expect(down).toHaveAttribute('aria-pressed', 'true');
   await expect(card.locator('.vote-summary')).toContainText('2 votes');
-  await card.getByRole('link', { name: 'Open case', exact: true }).click();
-  await expect(page).toHaveURL('/cases/' + caseId);
+  await card.getByRole('link', { name: 'Open issue', exact: true }).click();
+  await expect(page).toHaveURL('/issues/' + caseId);
   await expect(
     page.getByRole('button', { name: 'Downvote', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
@@ -117,14 +117,14 @@ test('signed-in votes toggle, persist and stay synchronized between cards and de
 test('comments and replies preserve text on failure, render safely, persist and allow author deletion', async ({
   page,
 }, info) => {
-  await signin(page, 'citizen@fixtures.invalid', '/cases');
+  await signin(page, 'citizen@fixtures.invalid', '/issues');
   const card = page
-    .getByRole('article', { name: 'Citizen case', exact: true })
+    .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   const message = 'Useful example <img src=x onerror="window.injected=true">';
   await card.getByLabel('Add a comment', { exact: true }).fill(message);
   let failOnce = true;
-  await page.route('**/api/cases/*/discussion', async (route) => {
+  await page.route('**/api/issues/*/discussion', async (route) => {
     if (
       route.request().method() === 'POST' &&
       route.request().postDataJSON().action === 'comment' &&
@@ -161,8 +161,8 @@ test('comments and replies preserve text on failure, render safely, persist and 
     path: info.outputPath('case-comment-reply.png'),
     fullPage: false,
   });
-  await card.getByRole('link', { name: 'Open case', exact: true }).click();
-  await expect(page).toHaveURL('/cases/' + caseId);
+  await card.getByRole('link', { name: 'Open issue', exact: true }).click();
+  await expect(page).toHaveURL('/issues/' + caseId);
   const detail = page.url();
   const root = page.locator('.comment-thread').first();
   await expect(root.locator('.comment-body').first()).toHaveText(message);
@@ -191,9 +191,9 @@ test('comments and replies preserve text on failure, render safely, persist and 
 test('signed-out voting asks for signin; comment failures can be retried without losing previews', async ({
   page,
 }) => {
-  await page.goto('/cases');
+  await page.goto('/issues');
   const card = page
-    .getByRole('article', { name: 'Citizen case', exact: true })
+    .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   let failOnce = true;
   await page.route('**/discussion?view=comments**', async (route) => {
@@ -218,15 +218,15 @@ test('signed-out voting asks for signin; comment failures can be retried without
     .click();
   await expect(card.locator('.comment-thread')).toHaveCount(10);
   await card.getByRole('button', { name: 'Upvote', exact: true }).click();
-  await expect(page).toHaveURL(/\/signin\?next=%2Fcases$/);
+  await expect(page).toHaveURL(/\/signin\?next=%2Fissues$/);
 });
 
 test('a reply to a long thread appears immediately without skipping unloaded replies', async ({
   page,
 }) => {
-  await signin(page, 'citizen@fixtures.invalid', '/cases');
+  await signin(page, 'citizen@fixtures.invalid', '/issues');
   const card = page
-    .getByRole('article', { name: 'Citizen case', exact: true })
+    .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   const thread = card.locator('.comment-thread').first();
   await thread.getByRole('button', { name: 'Reply', exact: true }).click();

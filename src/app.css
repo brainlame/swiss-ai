@@ -2113,3 +2113,106 @@ body {
     padding: 12px;
   }
 }
+
+.conversation-selection {
+  width: min(100%, 832px);
+  margin: 0 auto;
+  padding: 14px 28px;
+  flex: 0 1 auto;
+  max-height: 45%;
+  min-height: 72px;
+  overflow-y: auto;
+  background: var(--subtle);
+  border-bottom: 1px solid var(--line);
+}
+.selection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.selection-title h2 {
+  font-size: 17px;
+  margin: 0;
+}
+.conversation-selection > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.selection-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.selection-controls label {
+  font-size: 12px;
+}
+.selection-controls select {
+  min-width: 0;
+  width: 100%;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+.selection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chatbot-page.selecting .chatbot-heading > p {
+  display: none;
+}
+.chatbot-page.selecting .chatbot-title-row {
+  margin-bottom: 0;
+}
+.chat-message.included-message {
+  box-shadow: 0 0 0 2px var(--accent);
+  border-radius: 12px;
+  padding: 16px;
+}
+.selection-message-label {
+  display: block;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.selection-error {
+  margin: 0 auto;
+  width: min(100%, 832px);
+}
+.evidence-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.evidence-heading-actions .button {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .conversation-selection {
+    padding: 10px 20px;
+  }
+  .selection-title {
+    gap: 8px;
+  }
+  .selection-title h2 {
+    font-size: 15px;
+  }
+  .selection-controls {
+    gap: 8px;
+  }
+  .evidence-heading {
+    flex-wrap: wrap;
+  }
+  .evidence-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

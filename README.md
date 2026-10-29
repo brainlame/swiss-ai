@@ -1,6 +1,6 @@
 # AI Constitutions
 
-A responsive SvelteKit/TypeScript app for contributing chatbot behavior examples and proposed changes to 11 sample constitutional principles. Blue/white and blue/black themes respect the system preference and remember a manual selection. The working title and all sample statements are replaceable. Voting and anonymous discussions help people highlight useful cases. Formal review and model training remain future work.
+A responsive SvelteKit/TypeScript app for contributing chatbot behavior examples and proposed changes to 11 sample constitutional principles. Blue/white and blue/black themes respect the system preference and remember a manual selection. The working title and all sample statements are replaceable. Voting and anonymous discussions help people highlight useful issues. Formal review and model training remain future work.
 
 ## Install and run locally
 
@@ -17,23 +17,29 @@ Open http://localhost:5173. The supplied Supabase URL and publishable key are in
 
 ## How the app works
 
-The fixed bottom tabs are **Home**, **Chatbot**, and **All Cases**, on desktop and mobile. Account and signout are in the header; **My Cases** is an account destination.
+The fixed bottom tabs are **Home**, **Chatbot**, and **All Issues**, on desktop and mobile. Account and signout are in the header; **My Issues** is an account destination.
 
 1. Sign in or join at `/signin` with an emailed six-digit code.
 2. Open Chatbot and send messages. Hints opens a keyboard-accessible dialog with one clue for each of the 50 predefined behaviors. This is a simulation; some replies are intentionally flawed.
-3. Choose **Submit a case** in Chatbot. It freezes **every** message in chronological order before navigation clears the active chat.
-4. Review the read-only message bubbles, describe the case, choose bad / unwanted (new-case default) or good / wanted behavior, propose an improvement, and select exactly one constitution.
-5. Submit to publish. Anyone can find the case in All Cases, search both text fields, filter by constitution, sort, and load more. Owners can edit case fields and classification, or delete their case.
+3. Choose **Submit an issue** in Chatbot. Set the first and last exchange to select a continuous section. The latest exchange is selected initially; **Select all** includes the whole chat. Choose **Continue to issue** to attach only the highlighted messages.
+4. Review the read-only message bubbles, describe the issue, choose bad / unwanted (new-issue default) or good / wanted behavior, propose an improvement, and select exactly one constitution. **Back to chat** restores the full conversation and its highlighted range; form text and selections are retained when returning to the issue form.
+5. Submit to publish. Anyone can find the issue in All Issues, search both text fields, filter by constitution, sort, and load more. Owners can edit issue fields and classification, or delete their issue.
 
-Active chats stay in browser memory, without saved history, local/session storage, message URLs or application logs. The case handoff is a frozen one-use memory snapshot, retained by the mounted form during failed saves. Refreshing an unsaved form intentionally discards it and returns to Chatbot with guidance. `/submit` without a handoff redirects into Chatbot. A query parameter alone cannot supply evidence. JavaScript is required for the simulation and its form.
+Active chats stay in browser memory, without saved history, local/session storage, message URLs or application logs. Only one unsaved issue flow is retained while navigating between Chatbot and the form. **Back to chat** restores all messages, the selected range and any unsent chat draft. A temporary copy of the form fields also survives this round trip. No unselected messages are sent to the issue API or database. Leaving this two-page workflow, signing out, refreshing, or successfully submitting clears this return context. `/submit` without a handoff redirects into Chatbot. A query parameter alone cannot supply evidence. JavaScript is required for the simulation and its form.
+
+Selections use inclusive first/last exchange boundaries and one contiguous array slice; an exchange is one user message plus its chatbot reply. Boundary controls adjust together to prevent inverted ranges. A single exchange, a longer section, or the entire conversation is allowed, with no gaps or orphaned replies. Evidence is frozen before navigation and remains read-only. An unchanged retry keeps its submission ID; changing the attachment resets the ID while retaining the written form fields.
 
 Messages contain only `role` and `text` when attached; message IDs, timestamps and internal matched rules are omitted. Evidence preserves line breaks and renders as escaped text. The app validates 2–100 alternating user/assistant messages, complete pairs, 1–10,000 characters per message and at most 100,000 characters total. JSON request bodies are limited to 512,000 bytes. The server checks simulated replies against the local matcher. SQL independently validates structure/size and makes persisted transcripts immutable. This is contributed evidence, not a cryptographically certified record of chat origin; a direct authenticated API caller can supply structurally valid text.
 
 No new screenshot inputs, image uploads or screenshot requirements remain. Historical screenshots and older prompt/reply evidence stay visible. Historical unclassified rows remain `NULL`; an owner must explicitly choose a classification when editing them. Editing retains historical images unchanged. Deletion still removes associated evidence using the Storage API before removing records; failed cleanup is visible and retryable.
 
+## Issue terminology and compatible links
+
+The public interface, navigation, validation messages and page titles use **issues**. Canonical pages are `/issues`, `/issues/[id]`, `/issues/[id]/edit` and `/my-issues`; the read/discussion API uses `/api/issues`. Existing `/cases` and `/my-cases` links redirect with their query strings intact, and legacy `/api/cases` endpoints remain compatible. Database table names, RPCs, Prisma model names and existing evidence are intentionally unchanged, so this rename and selection update requires **no new migration**. Apply the existing migrations for the underlying app if they have not already been installed.
+
 ## Database and Storage setup
 
-SQL migrations are authoritative. Do not use `prisma db push` or Prisma migrations. `prisma/schema.prisma` documents public constitutions/cases/screenshots and private ownership/uploads, with comments for SQL-only checks, triggers, policies, RPCs and indexes. Prisma 7 uses `prisma.config.ts`; `npm run prisma:validate` needs no running database.
+SQL migrations are authoritative. Do not use `prisma db push` or Prisma migrations. `prisma/schema.prisma` documents public constitutions/issues/screenshots and private ownership/uploads, with comments for SQL-only checks, triggers, policies, RPCs and indexes. Prisma 7 uses `prisma.config.ts`; `npm run prisma:validate` needs no running database.
 
 An administrator must apply unapplied migrations in filename order:
 
@@ -42,7 +48,7 @@ An administrator must apply unapplied migrations in filename order:
 - `20261023000453_conversation_cases_and_email_codes.sql`: nullable transcript/classification columns, bounded transcript checks, immutable evidence, atomic `save_case`, retired creation/upload RPC access, and a restricted password rejection hook.
 - `20261029155023_case_votes_and_comments.sql`: public comments, private comment ownership and ballots, bounded discussion reads, authenticated vote/comment mutations, and comment deletion with reply-preserving tombstones.
 
-Existing installations apply **only the unapplied migration(s)**. Neither additive upgrade relabels historical cases, alters Auth identities/password hashes, or deletes evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
+Existing installations apply **only the unapplied migration(s)**. Neither additive upgrade relabels historical issues, alters Auth identities/password hashes, or deletes evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
 
 Using the authenticated Supabase CLI:
 
@@ -59,7 +65,7 @@ psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 \
   -f supabase/migrations/20261029155023_case_votes_and_comments.sql
 ```
 
-Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public case and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
+Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public issue and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
 
 Browsing uses literal substring search with a GIN trigram index, constitution filtering, `(created_at,id)` keyset ordering and a 13-row lookahead to display 12. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
 
@@ -75,7 +81,7 @@ Set the local URL and publishable key from `supabase status` in the ignored `.en
 
 ## Email-code authentication: required hosted setup
 
-The single sign-in/signup UI uses `signInWithOtp({ email, options: { shouldCreateUser: true } })`, followed by `verifyOtp({ email, token, type: 'email' })`. A new address is registered by Supabase during the request, but cannot authenticate or own cases until verification succeeds. Existing users authenticate into their existing ID and retain ownership; no account recreation or data migration occurs.
+The single sign-in/signup UI uses `signInWithOtp({ email, options: { shouldCreateUser: true } })`, followed by `verifyOtp({ email, token, type: 'email' })`. A new address is registered by Supabase during the request, but cannot authenticate or own issues until verification succeeds. Existing users authenticate into their existing ID and retain ownership; no account recreation or data migration occurs.
 
 The existing SSR client writes session cookies and refreshes them; `hooks.server.ts` verifies `auth.getUser()` before protected operations. The app validates return paths, supports string codes with leading zeros, pasting, numeric keyboards and one-time-code autofill. Incorrect/expired codes, sending failures and rate limits have actionable messages. A short-lived HttpOnly challenge cookie remembers the email/step and a 60-second resend cooldown; it contains no verification code. Supabase independently enforces its actual send/verification limits. Signout uses Supabase Auth.
 
@@ -103,25 +109,25 @@ After saving, request a **new** code from the app and check the newest email. Al
 
 ## Voting and anonymous discussions
 
-All Cases uses wider reading cards with a case description, proposed improvement, voting bar, comments and an **Open case** link. Case detail pages share the same discussion component and data. An upvote means “this is a useful case worth highlighting”; it does not label the model’s behavior good or bad and does not approve the proposed constitutional change.
+All Issues uses wider reading cards with an issue description, proposed improvement, voting bar, comments and an **Open issue** link. Issue detail pages share the same discussion component and data. An upvote means “this is a useful issue worth highlighting”; it does not label the model’s behavior good or bad and does not approve the proposed constitutional change.
 
-Anyone can read vote totals, the two newest top-level comment previews and expanded threads. Signing in is required to vote, comment or reply. An account has one ballot per case; choosing the other vote switches it, and selecting the current vote removes it. Vote buttons retain the reference design’s green/red selected states and use explicit text/pressed states. Empty vote totals have an unfilled bar.
+Anyone can read vote totals, the two newest top-level comment previews and expanded threads. Signing in is required to vote, comment or reply. An account has one ballot per issue; choosing the other vote switches it, and selecting the current vote removes it. Vote buttons retain the reference design’s green/red selected states and use explicit text/pressed states. Empty vote totals have an unfilled bar.
 
 All commenters are **Anonymous**. No display-name/profile table is added. `public.case_comments` contains message IDs and thread references, never Auth identifiers or emails. Ballots live in `private.case_votes`; ownership lives in `private.comment_owners`. Public read RPCs return aggregates and a current-request `my_vote` / `can_delete` boolean, not linkable account identities. Existing no-store response headers prevent personalized state from being shared by caches.
 
-Comments are escaped plain text, 1–2,000 characters, with relative timestamps. Top-level comments load newest first; **Show all comments** expands them and fetches 10 per page. Replies load chronologically in pages of 10. Every comment has Reply; replies to replies join that top-level thread, like a YouTube discussion. Cursor ordering includes the unique message ID to prevent ties from skipping rows. Authors can delete their own comments after confirmation; a deleted parent becomes a tombstone while its replies remain. Deleting a case cascades its comments, private ownership and votes.
+Comments are escaped plain text, 1–2,000 characters, with relative timestamps. Top-level comments load newest first; **Show all comments** expands them and fetches 10 per page. Replies load chronologically in pages of 10. Every comment has Reply; replies to replies join that top-level thread, like a YouTube discussion. Cursor ordering includes the unique message ID to prevent ties from skipping rows. Authors can delete their own comments after confirmation; a deleted parent becomes a tombstone while its replies remain. Deleting an issue cascades its comments, private ownership and votes.
 
-Authenticated SDK calls invoke restricted transactional RPCs; ordinary users cannot write the public table directly or read/forge ballots and ownership. Blank/oversized comments, cross-case parents, deeper nesting through direct RPCs, hidden cases, and another author’s deletion are rejected by SQL. Client-generated comment IDs make network retries idempotent. Failed requests retain typed text. Feed summaries fetch counts and at most two previews for up to 12 cases in one batch. A discussion outage leaves the case readable and offers Retry discussion.
+Authenticated SDK calls invoke restricted transactional RPCs; ordinary users cannot write the public table directly or read/forge ballots and ownership. Blank/oversized comments, cross-issue parents, deeper nesting through direct RPCs, hidden issues, and another author’s deletion are rejected by SQL. Client-generated comment IDs make network retries idempotent. Failed requests retain typed text. Feed summaries fetch counts and at most two previews for up to 12 issues in one batch. A discussion outage leaves the issue readable and offers Retry discussion.
 
-Apply the additive `20261029155023_case_votes_and_comments.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing cases.
+Apply the additive `20261029155023_case_votes_and_comments.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing issues.
 
 ## Historical Storage housekeeping
 
-Owner deletion still hides a case, removes its images using the Supabase SDK, then deletes case/screenshot/ownership/upload rows. Cleanup failures can be retried from My Cases. Existing abandoned files and failed deletions can use the preserved `/api/cleanup` endpoint:
+Owner deletion still hides an issue, removes its images using the Supabase SDK, then deletes issue/screenshot/ownership/upload rows. Cleanup failures can be retried from My Issues. Existing abandoned files and failed deletions can use the preserved `/api/cleanup` endpoint:
 
 - Set server-only `SUPABASE_SERVICE_ROLE_KEY` and random `CLEANUP_SECRET` (at least 32 random bytes).
 - Schedule an hourly POST to `/api/cleanup` with `Authorization: Bearer YOUR_CLEANUP_SECRET`; alert/retry on non-2xx. Use a hosting scheduler or Supabase Cron with pg_net/Vault.
-- The route processes up to 40 cases per run. No service credential is sent to browsers. New conversation-only cases create no abandoned image files.
+- The route processes up to 40 issues per run. No service credential is sent to browsers. New conversation-only issues create no abandoned image files.
 
 ```sh
 curl --fail --request POST --header "Authorization: Bearer $CLEANUP_SECRET" https://YOUR_APP/api/cleanup

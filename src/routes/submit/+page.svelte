@@ -3,9 +3,9 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>Submit a Case · AI Constitutions</title></svelte:head>
+<svelte:head><title>Submit a Issue · AI Constitutions</title></svelte:head>
 <div class="page-heading form-page-heading narrow">
-  <h1>Submit a case</h1>
+  <h1>Submit an issue</h1>
   <p>
     Review your attached conversation, describe the behavior, and propose a
     change to one constitution.

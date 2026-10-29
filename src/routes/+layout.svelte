@@ -2,7 +2,8 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { navigating, page } from '$app/state';
-  import { afterNavigate } from '$app/navigation';
+  import { afterNavigate, beforeNavigate } from '$app/navigation';
+  import { discardIssueFlow } from '#lib/chat-evidence.js';
   let { data, children } = $props();
   let account = $state(false),
     dark = $state(false),
@@ -20,12 +21,16 @@
       path: 'M4 4h16v12H8l-4 4V4Zm4 5h8m-8 3h5',
     },
     {
-      href: '/cases',
-      label: 'All Cases',
+      href: '/issues',
+      label: 'All Issues',
       path: 'M5 3h14v18H5V3Zm4 5h6m-6 4h6m-6 4h4',
     },
   ];
   afterNavigate(() => (account = false));
+  beforeNavigate(({ to }) => {
+    if (!to || !['/chatbot', '/submit'].includes(to.url.pathname))
+      discardIssueFlow();
+  });
   onMount(() => {
     ready = true;
     dark = document.documentElement.dataset.theme === 'dark';
@@ -50,6 +55,7 @@
 </script>
 
 <svelte:window
+  onpagehide={discardIssueFlow}
   onkeydown={(e) => {
     if (e.key === 'Escape' && account) {
       close();
@@ -105,7 +111,7 @@
         id="account-menu"
         class="account-popover"
       >
-        <a href="/my-cases" onclick={close}>My Cases</a>
+        <a href="/my-issues" onclick={close}>My Issues</a>
         <form action="/signout" method="POST"><button>Sign Out</button></form>
       </div>{/if}
   </div>
@@ -130,10 +136,12 @@
           : tab.href === '/chatbot'
             ? page.url.pathname === '/chatbot' ||
               page.url.pathname === '/submit'
-            : page.url.pathname.startsWith('/cases')}
+            : page.url.pathname.startsWith('/issues')}
       <a
         href={tab.href}
-        data-sveltekit-preload-data={tab.href === '/cases' ? 'off' : undefined}
+        data-sveltekit-preload-data={tab.href === '/issues'
+          ? 'false'
+          : undefined}
         aria-current={active ? 'page' : undefined}
         onclick={close}
       >

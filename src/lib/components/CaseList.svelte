@@ -48,10 +48,10 @@
       params.set('time', last.created_at);
       params.set('cursor', last.id);
       if (data.mine) params.set('mine', 'true');
-      const response = await fetch('/api/cases?' + params);
+      const response = await fetch('/api/issues?' + params);
       const result = await response.json();
       if (!response.ok)
-        throw new Error(result.message ?? 'Could not load more cases.');
+        throw new Error(result.message ?? 'Could not load more issues.');
       if (current !== generation) return;
       const ids = new Set(items.map((c) => c.id));
       items = [
@@ -69,30 +69,30 @@
 </script>
 
 <svelte:head
-  ><title>{data.mine ? 'My Cases' : 'All Cases'} · AI Constitutions</title
+  ><title>{data.mine ? 'My Issues' : 'All Issues'} · AI Constitutions</title
   ></svelte:head
 >
 <div class="page-heading">
-  <h1>{data.mine ? 'My Cases' : 'All Cases'}</h1>
+  <h1>{data.mine ? 'My Issues' : 'All Issues'}</h1>
   <p>
     {data.mine
-      ? 'View and manage the cases you’ve contributed.'
-      : 'Discover chatbot examples, highlight useful cases, and join the discussion.'}
+      ? 'View and manage the issues you’ve contributed.'
+      : 'Discover chatbot examples, highlight useful issues, and join the discussion.'}
   </p>
 </div>
 {#if page.url.searchParams.has('deleted')}<p
     class="notice success"
     role="status"
   >
-    Your case and its evidence have been deleted.
+    Your issue and its evidence have been deleted.
   </p>{/if}
 <form
   class="filter-bar"
   method="GET"
-  action={data.mine ? '/my-cases' : '/cases'}
+  action={data.mine ? '/my-issues' : '/issues'}
 >
   <div class="search-control">
-    <label for="search">Search cases</label><input
+    <label for="search">Search issues</label><input
       id="search"
       type="search"
       name="q"
@@ -124,21 +124,21 @@
   </div>
   <button class="button" type="submit">Apply</button>{#if active}<a
       class="reset-link"
-      href={data.mine ? '/my-cases' : '/cases'}>Reset filters</a
+      href={data.mine ? '/my-issues' : '/issues'}>Reset filters</a
     >{/if}
 </form>
 <div class="results-heading">
-  <span>{data.mine ? 'Your cases' : 'Citizen cases'}</span><a href="/chatbot"
+  <span>{data.mine ? 'Your issues' : 'Citizen issues'}</span><a href="/chatbot"
     >Open Chatbot
   </a>
 </div>
 {#if items.length}<div
     class="case-grid discussion-feed"
-    data-sveltekit-preload-data="off"
+    data-sveltekit-preload-data="false"
   >
     {#each items as item (item.id)}<article
         class="case-card discussion-card"
-        aria-label="Citizen case"
+        aria-label="Citizen issue"
       >
         <div class="case-card-content">
           <div class="case-card-top">
@@ -150,8 +150,8 @@
           <h2>
             <a
               href={item.status === 'deleting'
-                ? '/cases/' + item.id + '/edit'
-                : '/cases/' + item.id}
+                ? '/issues/' + item.id + '/edit'
+                : '/issues/' + item.id}
               >{item.description.length > 100
                 ? item.description.slice(0, 100) + '…'
                 : item.description}</a
@@ -188,16 +188,16 @@
           <div class="case-card-footer">
             {#if data.mine}<a
                 class="manage-link"
-                href={'/cases/' + item.id + '/edit'}
+                href={'/issues/' + item.id + '/edit'}
                 >{item.status === 'deleting'
                   ? 'Retry deletion'
-                  : 'Edit case'}</a
+                  : 'Edit issue'}</a
               >{/if}
             <a
-              class="button secondary open-case"
+              class="button secondary open-issue"
               href={item.status === 'deleting'
-                ? '/cases/' + item.id + '/edit'
-                : '/cases/' + item.id}>Open case</a
+                ? '/issues/' + item.id + '/edit'
+                : '/issues/' + item.id}>Open issue</a
             >
           </div>
         </div>
@@ -205,21 +205,21 @@
   </div>{:else}<div class="empty-state">
     <h2>
       {active
-        ? 'No matching cases'
+        ? 'No matching issues'
         : data.mine
-          ? 'You haven’t submitted any cases.'
-          : 'No cases yet.'}
+          ? 'You haven’t submitted any issues.'
+          : 'No issues yet.'}
     </h2>
     <p>
       {active
         ? 'Try a different search or constitution.'
         : data.mine
-          ? 'Your submitted cases will appear here.'
-          : 'Start a conversation in Chatbot to contribute the first case.'}
+          ? 'Your submitted issues will appear here.'
+          : 'Start a conversation in Chatbot to contribute the first issue.'}
     </p>
     <a
       class="button"
-      href={active ? (data.mine ? '/my-cases' : '/cases') : '/chatbot'}
+      href={active ? (data.mine ? '/my-issues' : '/issues') : '/chatbot'}
       >{active ? 'Reset filters' : 'Open Chatbot'}</a
     >
   </div>{/if}

@@ -17,7 +17,7 @@ export const POST = async ({ locals, request, url }) => {
     error(403, 'Invalid request origin.');
   // Bound streamed bodies as well as requests with Content-Length.
   const reader = request.body?.getReader();
-  if (!reader) error(400, 'Missing case data.');
+  if (!reader) error(400, 'Missing issue data.');
   const chunks: Uint8Array[] = [];
   let size = 0;
   while (true) {
@@ -43,9 +43,9 @@ export const POST = async ({ locals, request, url }) => {
   try {
     body = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
-    error(400, 'Invalid case data.');
+    error(400, 'Invalid issue data.');
   }
-  if (!body || typeof body !== 'object') error(400, 'Invalid case data.');
+  if (!body || typeof body !== 'object') error(400, 'Invalid issue data.');
   const { id, description, improvement, constitution, version, behavior } =
     body;
   const transcript: unknown = body.transcript ?? null;
@@ -57,7 +57,7 @@ export const POST = async ({ locals, request, url }) => {
     !Number.isInteger(version) ||
     version < 1
   )
-    error(400, 'Invalid case data.');
+    error(400, 'Invalid issue data.');
   try {
     validateText(description, improvement, constitution);
     validateBehavior(behavior);
@@ -86,10 +86,10 @@ export const POST = async ({ locals, request, url }) => {
     error(
       400,
       e.message.includes('Reload')
-        ? 'This case changed in another tab. Reload before saving again.'
+        ? 'This issue changed in another tab. Reload before saving again.'
         : e.message.includes('read-only')
           ? 'The attached conversation is read-only. Reload before saving.'
-          : 'Could not save this case. Check your session and conversation, then retry. Your text is preserved.',
+          : 'Could not save this issue. Check your session and conversation, then retry. Your text is preserved.',
     );
   return json({ id });
 };
