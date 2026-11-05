@@ -1,5 +1,12 @@
 <script lang="ts">
   import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
+  import LineIcon from '#lib/components/LineIcon.svelte';
+  import IssueOverview from '#lib/components/IssueOverview.svelte';
+  import type {
+    IssueOverview as Overview,
+    RankingCursor,
+  } from '#lib/issue-overview.js';
+  import ConversationArt from '#lib/components/ConversationArt.svelte';
   import { onMount, untrack } from 'svelte';
   import { page } from '$app/state';
   import type { CaseSummary, Constitution } from '#lib/types.js';
@@ -13,12 +20,24 @@
       query: string;
       mine: boolean;
       constitutions: Constitution[];
+      overview?: Overview | null;
+      revision?: string | null;
+      nextCursor?: RankingCursor | null;
     };
   } = $props();
   let items = $state<CaseSummary[]>(untrack(() => data.items)),
     hasMore = $state(untrack(() => data.hasMore)),
     busy = $state(false),
     message = $state('');
+  let revision = $state(untrack(() => data.revision ?? null));
+  let latestRevision = $state<string | null>(null),
+    forceStale = $state(false),
+    activity = $state(0);
+  let nextCursor = $state(untrack(() => data.nextCursor ?? null));
+  const rankingChanged = $derived(
+    !data.mine &&
+      (forceStale || (!!latestRevision && latestRevision !== revision)),
+  );
   let ready = $state(false);
   onMount(() => {
     ready = true;
@@ -28,6 +47,10 @@
     const fresh = data;
     generation++;
     items = fresh.items;
+    revision = fresh.revision ?? null;
+    latestRevision = null;
+    forceStale = false;
+    nextCursor = fresh.nextCursor ?? null;
     hasMore = fresh.hasMore;
     message = '';
     busy = false;
@@ -35,10 +58,10 @@
   const active = $derived(
     !!page.url.searchParams.get('q') ||
       !!page.url.searchParams.get('constitution') ||
-      page.url.searchParams.get('sort') === 'oldest',
+      (data.mine && page.url.searchParams.get('sort') === 'oldest'),
   );
   async function more() {
-    if (busy || !items.length) return;
+    if (busy || !items.length || rankingChanged) return;
     busy = true;
     message = '';
     const current = generation;
@@ -48,8 +71,15 @@
       params.set('time', last.created_at);
       params.set('cursor', last.id);
       if (data.mine) params.set('mine', 'true');
+      else if (nextCursor)
+        for (const [key, value] of Object.entries(nextCursor))
+          params.set(key, String(value));
       const response = await fetch('/api/issues?' + params);
       const result = await response.json();
+      if (response.status === 409) {
+        if (current === generation) forceStale = true;
+        return;
+      }
       if (!response.ok)
         throw new Error(result.message ?? 'Could not load more issues.');
       if (current !== generation) return;
@@ -59,6 +89,35 @@
         ...result.items.filter((c: CaseSummary) => !ids.has(c.id)),
       ];
       hasMore = result.hasMore;
+      nextCursor = result.nextCursor;
+    } catch (e) {
+      if (current === generation)
+        message = (e as Error).message + ' Try again.';
+    } finally {
+      if (current === generation) busy = false;
+    }
+  }
+  async function refreshRanking() {
+    if (busy) return;
+    busy = true;
+    message = '';
+    const current = generation;
+    try {
+      const params = new URLSearchParams(data.query);
+      for (const key of ['time', 'cursor', 'upvotes', 'revision'])
+        params.delete(key);
+      const response = await fetch('/api/issues?' + params);
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.message ?? 'Could not refresh issues.');
+      if (current !== generation) return;
+      items = result.items;
+      hasMore = result.hasMore;
+      nextCursor = result.nextCursor;
+      revision = result.revision;
+      latestRevision = result.revision;
+      forceStale = false;
+      activity++;
     } catch (e) {
       if (current === generation)
         message = (e as Error).message + ' Try again.';
@@ -72,34 +131,49 @@
   ><title>{data.mine ? 'My Issues' : 'All Issues'} · AI Constitutions</title
   ></svelte:head
 >
-<div class="page-heading">
-  <h1>{data.mine ? 'My Issues' : 'All Issues'}</h1>
-  <p>
-    {data.mine
-      ? 'View and manage the issues you’ve contributed.'
-      : 'Discover chatbot examples, highlight useful issues, and join the discussion.'}
-  </p>
+<div class="page-heading issues-heading">
+  <div>
+    <h1>{data.mine ? 'My Issues' : 'All Issues'}</h1>
+    <p>
+      {data.mine
+        ? 'Your contributions, in one place.'
+        : 'Real observations. Ideas for better AI.'}
+    </p>
+  </div>
+  <div class="issues-art"><ConversationArt /></div>
 </div>
 {#if page.url.searchParams.has('deleted')}<p
     class="notice success"
     role="status"
   >
-    Your issue and its evidence have been deleted.
+    Issue deleted.
   </p>{/if}
+{#if !data.mine}<IssueOverview
+    initial={data.overview ?? null}
+    constitutions={data.constitutions}
+    refreshKey={activity}
+    onrevision={(value) => {
+      if (!revision || BigInt(value) >= BigInt(revision))
+        latestRevision = value;
+    }}
+  />{/if}
 <form
   class="filter-bar"
   method="GET"
   action={data.mine ? '/my-issues' : '/issues'}
 >
   <div class="search-control">
-    <label for="search">Search issues</label><input
-      id="search"
-      type="search"
-      name="q"
-      maxlength="200"
-      placeholder="Search descriptions and proposals…"
-      value={page.url.searchParams.get('q') ?? ''}
-    />
+    <label for="search">Search issues</label>
+    <div class="search-input">
+      <LineIcon name="search" size={19} /><input
+        id="search"
+        type="search"
+        name="q"
+        maxlength="200"
+        placeholder="Find an issue…"
+        value={page.url.searchParams.get('q') ?? ''}
+      />
+    </div>
   </div>
   <div>
     <label for="filter">Constitution</label><select
@@ -112,26 +186,39 @@
         >{/each}</select
     >
   </div>
-  <div>
-    <label for="sort">Sort by</label><select
-      id="sort"
-      name="sort"
-      value={page.url.searchParams.get('sort') ?? 'newest'}
-      ><option value="newest">Newest first</option><option value="oldest"
-        >Oldest first</option
-      ></select
-    >
-  </div>
+  {#if data.mine}<div>
+      <label for="sort">Sort by</label><select
+        id="sort"
+        name="sort"
+        value={page.url.searchParams.get('sort') ?? 'newest'}
+        ><option value="newest">Newest first</option><option value="oldest"
+          >Oldest first</option
+        ></select
+      >
+    </div>
+  {/if}
   <button class="button" type="submit">Apply</button>{#if active}<a
       class="reset-link"
       href={data.mine ? '/my-issues' : '/issues'}>Reset filters</a
     >{/if}
 </form>
 <div class="results-heading">
-  <span>{data.mine ? 'Your issues' : 'Citizen issues'}</span><a href="/chatbot"
-    >Open Chatbot
-  </a>
+  <span class="feed-label"
+    ><LineIcon name={data.mine ? 'edit' : 'people'} size={19} />{data.mine
+      ? 'Your contributions'
+      : 'Trending issues'}</span
+  >{#if !data.mine}<span class="ranking-note">Most upvoted first</span>{:else}<a
+      href="/chatbot">Open Chatbot</a
+    >{/if}
 </div>
+{#if rankingChanged}<div class="ranking-refresh" role="status">
+    <span>New activity. Refresh to see the latest issues.</span><button
+      type="button"
+      class="button secondary"
+      disabled={busy}
+      onclick={refreshRanking}>{busy ? 'Refreshing…' : 'Refresh issues'}</button
+    >
+  </div>{/if}
 {#if items.length}<div
     class="case-grid discussion-feed"
     data-sveltekit-preload-data="false"
@@ -152,25 +239,22 @@
               href={item.status === 'deleting'
                 ? '/issues/' + item.id + '/edit'
                 : '/issues/' + item.id}
-              >{item.description.length > 100
-                ? item.description.slice(0, 100) + '…'
+              >{item.description.length > 200
+                ? item.description.slice(0, 200) + '…'
                 : item.description}</a
             >
           </h2>
-          {#if item.description.length > 100}<p
-              class="case-description-preview"
-            >
-              {item.description.length > 600
-                ? item.description.slice(0, 600) + '…'
-                : item.description}
-            </p>{/if}
           <div class="case-proposal-preview">
-            <strong>Proposed improvement</strong>
-            <p>
-              {item.improvement.length > 250
-                ? item.improvement.slice(0, 250) + '…'
-                : item.improvement}
-            </p>
+            <span class="proposal-icon"><LineIcon name="edit" size={20} /></span
+            >
+            <div>
+              <strong>Proposed change</strong>
+              <p>
+                {item.improvement.length > 250
+                  ? item.improvement.slice(0, 250) + '…'
+                  : item.improvement}
+              </p>
+            </div>
           </div>
           <div class="case-meta">
             <span>Anonymous</span><time datetime={item.created_at}
@@ -184,6 +268,7 @@
               caseId={item.id}
               initial={item.discussion}
               signedIn={!!page.data.signedIn}
+              onvote={() => activity++}
             />{/if}
           <div class="case-card-footer">
             {#if data.mine}<a
@@ -225,7 +310,10 @@
   </div>{/if}
 {#if message}<p class="notice error" role="alert">{message}</p>{/if}
 {#if hasMore}<div class="load-more">
-    <button class="button secondary" onclick={more} disabled={busy || !ready}
+    <button
+      class="button secondary"
+      onclick={more}
+      disabled={busy || !ready || rankingChanged}
       >{busy ? 'Loading more…' : 'Load more'}</button
     >
   </div>{/if}

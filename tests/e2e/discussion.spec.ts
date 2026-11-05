@@ -74,7 +74,7 @@ test('public issue cards show voting, anonymous relative-time comments and pagin
   await expect(page).toHaveURL('/issues/' + caseId);
   await expect(page).toHaveURL('/issues/' + caseId);
   await expect(
-    page.getByRole('heading', { name: 'Community discussion' }),
+    page.getByRole('heading', { name: 'Discussion', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Upvote', exact: true }),

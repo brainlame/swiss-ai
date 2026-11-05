@@ -255,11 +255,9 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
   const description = 'Full conversation browser fixture';
   await page.getByLabel('Description', { exact: false }).fill(description);
   await page
-    .getByLabel('Proposed constitutional improvement', { exact: false })
+    .getByLabel('Proposed change', { exact: false })
     .fill('Explain how an answer can be verified.');
-  await page
-    .getByLabel('Constitution being addressed', { exact: false })
-    .selectOption('2');
+  await page.getByLabel('Constitution', { exact: false }).selectOption('2');
   await page.getByRole('radio', { name: 'Good / wanted behavior' }).check();
   await page.screenshot({
     path: info.outputPath('conversation-case-form.png'),
@@ -365,7 +363,7 @@ test('chatbot: missing or refreshed snapshots return to Chatbot with guidance', 
   await page.reload();
   await expect(page).toHaveURL(/\/chatbot\?evidence=missing$/);
   await expect(page.getByRole('status')).toContainText(
-    'snapshot is no longer available',
+    'Your selection was cleared',
   );
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });

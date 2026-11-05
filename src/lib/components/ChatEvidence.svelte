@@ -24,8 +24,7 @@
     </div>
   </div>
   <p class="helper">
-    {transcript.length} messages attached from the simulated chatbot. This evidence
-    stays read-only.
+    {transcript.length} messages from the simulated chatbot.
   </p>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (Long, read-only transcripts need a keyboard-focusable scroll area.) -->
   <div

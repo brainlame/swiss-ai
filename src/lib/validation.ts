@@ -51,6 +51,48 @@ export function browseParams(url: URL) {
   };
 }
 
+// A rank cursor is a complete tuple; never silently restart a malformed page.
+export function trendingParams(url: URL) {
+  const { p_search, p_constitution } = browseParams(url);
+  const values = ['upvotes', 'time', 'cursor', 'revision'].map((key) =>
+    url.searchParams.get(key),
+  );
+  if (values.every((value) => value === null))
+    return {
+      p_search,
+      p_constitution,
+      p_upvotes: null,
+      p_time: null,
+      p_id: null,
+      p_revision: null,
+    };
+  const [upvotes, time, id, revision] = values;
+  if (
+    !upvotes ||
+    !/^\d{1,16}$/.test(upvotes) ||
+    !Number.isSafeInteger(Number(upvotes)) ||
+    !time ||
+    !/^\d{4}-\d{2}-\d{2}T/.test(time) ||
+    !Number.isFinite(Date.parse(time)) ||
+    !id ||
+    !UUID.test(id) ||
+    !revision ||
+    !/^\d{1,19}$/.test(revision) ||
+    BigInt(revision) > 9223372036854775807n
+  )
+    throw new Error(
+      'Invalid ranking cursor. Refresh the issues and try again.',
+    );
+  return {
+    p_search,
+    p_constitution,
+    p_upvotes: Number(upvotes),
+    p_time: time,
+    p_id: id,
+    p_revision: revision,
+  };
+}
+
 // Shared with the SQL constraint: complete alternating pairs, bounded count and text.
 export function validateTranscript(
   value: unknown,

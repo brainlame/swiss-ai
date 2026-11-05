@@ -1,7 +1,7 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { discussions } from '#lib/server/discussion.js';
-import { browseParams, UUID } from '#lib/validation.js';
+import { browseParams, trendingParams, UUID } from '#lib/validation.js';
 import type { CaseRecord, CaseSummary, Screenshot } from '#lib/types.js';
 export function requireUser(event: Pick<RequestEvent, 'locals' | 'url'>) {
   if (!event.locals.user)
@@ -53,20 +53,33 @@ export async function withImages<T extends { id: string }>(
   }));
 }
 export async function browse(db: SupabaseClient, url: URL, mine = false) {
-  const { data, error: e } = await db
-    .rpc('browse_cases', {
-      ...browseParams(url),
-      p_mine: mine,
-    })
-    .select(
-      'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior',
-    );
-  if (e) error(503, 'Issues could not be loaded. Please retry.');
-  const rows = (data ?? []) as Omit<
-    CaseSummary,
-    'screenshots' | 'discussion'
-  >[];
-  const visible = rows.slice(0, 12);
+  let rows: Omit<CaseSummary, 'screenshots' | 'discussion'>[];
+  let revision: string | null = null;
+  const pageSize = mine ? 12 : 10;
+  if (mine) {
+    const { data, error: e } = await db
+      .rpc('browse_cases', { ...browseParams(url), p_mine: true })
+      .select(
+        'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior',
+      );
+    if (e) error(503, 'Issues could not be loaded. Please retry.');
+    rows = (data ?? []) as typeof rows;
+  } else {
+    let params;
+    try {
+      params = trendingParams(url);
+    } catch (e) {
+      error(400, (e as Error).message);
+    }
+    const { data, error: e } = await db.rpc('browse_trending_issues', params);
+    if (e?.code === '40001')
+      error(409, 'Issues have changed. Refresh the ranking to load more.');
+    if (e) error(503, 'Issues could not be loaded. Please retry.');
+    rows = data.items;
+    revision = data.revision;
+  }
+  const visible = rows.slice(0, pageSize);
+  const last = visible.at(-1);
   const summaries = await discussions(
     db,
     visible.map((row) => row.id),
@@ -79,7 +92,17 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
         discussion: summaries?.find((s) => s.case_id === row.id) ?? null,
       })),
     ),
-    hasMore: rows.length > 12,
+    hasMore: rows.length > pageSize,
+    revision,
+    nextCursor:
+      !mine && last && rows.length > pageSize
+        ? {
+            upvotes: last.upvotes!,
+            time: last.created_at,
+            cursor: last.id,
+            revision: revision!,
+          }
+        : null,
   };
 }
 export async function getCase(db: SupabaseClient, id: string, owner = false) {
@@ -114,4 +137,12 @@ export async function cleanup(
   }
   const { error: p } = await db.rpc('prune_uploads', { p_id: id });
   return !p;
+}
+
+// Aggregate public rows only; a visualization outage must not hide the feed.
+export async function issueOverview(
+  db: SupabaseClient,
+): Promise<import('#lib/issue-overview.js').IssueOverview | null> {
+  const { data, error } = await db.rpc('issue_overview');
+  return error ? null : data;
 }

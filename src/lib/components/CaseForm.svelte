@@ -116,7 +116,7 @@
   </form>
 {:else if !item && !ready}
   <p class="notice" role="status">
-    Opening your conversation snapshot… If it is unavailable, <a href="/chatbot"
+    Opening your conversation… If it is unavailable, <a href="/chatbot"
       >return to Chatbot</a
     > to start an issue.
   </p>
@@ -128,9 +128,8 @@
         backDisabled={busy}
       />
       <p class="notice">
-        Only the attached selection will be public. If it contains identifying
-        information, return to <a href="/chatbot">Chatbot</a> and use anonymized messages
-        before starting an issue.
+        Your issue is public. Remove names, emails, and other identifying
+        details before sharing.
       </p>
     {/if}
     {#if item?.screenshots.length}<section
@@ -155,8 +154,7 @@
       <fieldset class="behavior-options" disabled={busy}>
         <legend>Behavior <span class="required">Required</span></legend>
         <p class="helper" id="behavior-help">
-          Does this example show behavior you want the model to exhibit, or
-          behavior you want it to avoid?
+          Should AI repeat this behavior or avoid it?
         </p>
         <label
           ><input
@@ -179,8 +177,7 @@
           /> Good / wanted behavior</label
         >
         {#if initial && !initial.behavior}<p class="helper">
-            This historical issue is unclassified. Choose a classification to
-            save your changes.
+            Choose a behavior to save this older issue.
           </p>{/if}
       </fieldset>
     </section>
@@ -191,8 +188,7 @@
           ></label
         >
         <p class="helper" id="description-help">
-          What happened, and why does it matter? Explain which parts of the
-          conversation support your issue.
+          What happened, and why does it matter?
         </p>
         <textarea
           id="description"
@@ -202,21 +198,18 @@
           rows="6"
           disabled={busy}
           aria-describedby="description-help"
-          placeholder="Describe the chatbot interaction and what stood out to you…"
-        ></textarea>
+          placeholder="What stood out to you?"></textarea>
       </div>
     </section>
     <section class="form-section" aria-label="Suggested change">
       <div class="field-body">
         <label id="improvement-label" for="improvement"
-          >Proposed constitutional improvement <span
-            class="required"
-            aria-hidden="true">Required</span
+          >Proposed change <span class="required" aria-hidden="true"
+            >Required</span
           ></label
         >
         <p class="helper" id="improvement-help">
-          Suggest a concrete change to the principle and explain why your
-          example supports it.
+          Suggest a specific change to the principle and explain why.
         </p>
         <textarea
           id="improvement"
@@ -233,14 +226,10 @@
     <section class="form-section" aria-label="Principle selection">
       <div class="field-body">
         <label id="constitution-label" for="constitution"
-          >Constitution being addressed <span
-            class="required"
-            aria-hidden="true">Required</span
+          >Constitution <span class="required" aria-hidden="true">Required</span
           ></label
         >
-        <p class="helper">
-          Choose the one sample principle your proposal addresses.
-        </p>
+        <p class="helper">Which sample principle would you change?</p>
         <select
           id="constitution"
           bind:value={constitution}
@@ -265,9 +254,7 @@
         Your issue is saved. <a href={done}>Open your issue</a>
       </p>{/if}
     <div class="form-footer">
-      <p class="muted">
-        Your issue will be public.<br />Your account details stay private.
-      </p>
+      <p class="muted">Published as Anonymous. Your email stays private.</p>
       <button class="button" disabled={busy || !!done || !ready}
         >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit issue'}</button
       >

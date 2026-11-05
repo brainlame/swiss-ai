@@ -34,7 +34,7 @@
   <p class="muted">
     {step === 'verify'
       ? `Enter the six-digit code sent to ${email}.`
-      : 'Use your email to sign in. New here? We’ll create your account when you verify your code.'}
+      : 'Sign in or create an account with an email code.'}
   </p>
   {#if page.url.searchParams.has('authError')}<p
       class="notice error"
@@ -73,7 +73,7 @@
         aria-describedby="code-help"
       />
       <p class="helper" id="code-help">
-        Paste or type all six digits, including any leading zero.
+        Enter all six digits, including any leading zero.
       </p>
       <button class="button full" disabled={busy}
         >{busy ? 'Please wait…' : 'Verify and continue'}</button
@@ -127,8 +127,5 @@
       >
     </form>
   {/if}
-  <p class="helper">
-    Your contributions are public and labeled Anonymous. Your email stays
-    private.
-  </p>
+  <p class="helper">You appear as Anonymous. Your email stays private.</p>
 </div>

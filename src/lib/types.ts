@@ -45,4 +45,7 @@ export type CaseSummary = Pick<
   | 'version'
   | 'behavior'
   | 'screenshots'
-> & { discussion: import('#lib/discussion.js').Discussion | null };
+> & {
+  discussion: import('#lib/discussion.js').Discussion | null;
+  upvotes?: number;
+};

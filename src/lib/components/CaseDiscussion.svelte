@@ -14,8 +14,13 @@
     caseId,
     initial,
     signedIn,
-  }: { caseId: string; initial: Discussion | null; signedIn: boolean } =
-    $props();
+    onvote,
+  }: {
+    caseId: string;
+    initial: Discussion | null;
+    signedIn: boolean;
+    onvote?: () => void;
+  } = $props();
   let discussion = $state<Discussion | null>(untrack(() => initial));
   let comments = $state<Comment[]>(untrack(() => initial?.preview ?? []));
   let expanded = $state(false),
@@ -124,6 +129,7 @@
     notice = '';
     try {
       await mutate({ action: 'vote', value: selected });
+      onvote?.();
       try {
         await refresh();
       } catch {
@@ -393,14 +399,12 @@
       >
     </div>
     <p class="vote-help">
-      Is this a useful issue worth highlighting? {discussion.my_vote
-        ? 'Select your vote again to remove it.'
-        : ''}
+      Upvote useful issues. {discussion.my_vote ? 'Select again to undo.' : ''}
     </p>
     {#if voting}<p class="sr-only" role="status">Saving vote…</p>{/if}
     <div class="discussion-heading">
       <h3>Comments <span>{discussion.comment_count}</span></h3>
-      <span class="anonymous-note">Everyone appears as Anonymous</span>
+      <span class="anonymous-note">Anonymous discussion</span>
     </div>
     {#if signedIn}
       <form class="comment-composer" onsubmit={postComment}>
@@ -433,14 +437,14 @@
           readonly></textarea>
         <div>
           <a href={signIn}>Sign in to comment</a><span
-            >Anyone can read the discussion.</span
+            >Comments are public.</span
           >
         </div>
       </div>
     {/if}
     {#if notice}<p class="discussion-status" role="status">{notice}</p>{/if}
     {#if !comments.length}<p class="discussion-empty">
-        No comments yet. Start the conversation.
+        Be the first to comment.
       </p>{/if}
     <div class="comment-list">
       {#each comments as comment (comment.id)}

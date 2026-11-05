@@ -23,7 +23,7 @@ The fixed bottom tabs are **Home**, **Chatbot**, and **All Issues**, on desktop 
 2. Open Chatbot and send messages. Hints opens a keyboard-accessible dialog with one clue for each of the 50 predefined behaviors. This is a simulation; some replies are intentionally flawed.
 3. Choose **Submit an issue** in Chatbot. Set the first and last exchange to select a continuous section. The latest exchange is selected initially; **Select all** includes the whole chat. Choose **Continue to issue** to attach only the highlighted messages.
 4. Review the read-only message bubbles, describe the issue, choose bad / unwanted (new-issue default) or good / wanted behavior, propose an improvement, and select exactly one constitution. **Back to chat** restores the full conversation and its highlighted range; form text and selections are retained when returning to the issue form.
-5. Submit to publish. Anyone can find the issue in All Issues, search both text fields, filter by constitution, sort, and load more. Owners can edit issue fields and classification, or delete their issue.
+5. Submit to publish. Anyone can find the issue in All Issues, search both text fields, filter by constitution, and load more in upvote order. Owners can edit issue fields and classification, or delete their issue.
 
 Active chats stay in browser memory, without saved history, local/session storage, message URLs or application logs. Only one unsaved issue flow is retained while navigating between Chatbot and the form. **Back to chat** restores all messages, the selected range and any unsent chat draft. A temporary copy of the form fields also survives this round trip. No unselected messages are sent to the issue API or database. Leaving this two-page workflow, signing out, refreshing, or successfully submitting clears this return context. `/submit` without a handoff redirects into Chatbot. A query parameter alone cannot supply evidence. JavaScript is required for the simulation and its form.
 
@@ -47,27 +47,27 @@ An administrator must apply unapplied migrations in filename order:
 - `20261015000000_chat_exchange_evidence.sql`: historical prompt/reply support.
 - `20261023000453_conversation_cases_and_email_codes.sql`: nullable transcript/classification columns, bounded transcript checks, immutable evidence, atomic `save_case`, retired creation/upload RPC access, and a restricted password rejection hook.
 - `20261029155023_case_votes_and_comments.sql`: public comments, private comment ownership and ballots, bounded discussion reads, authenticated vote/comment mutations, and comment deletion with reply-preserving tombstones.
+- `20261104213249_trending_issues_and_live_overview.sql`: transactional upvote counters, indexed ten-row trending pages, public-only aggregates and an identity-free Realtime revision signal.
 
-Existing installations apply **only the unapplied migration(s)**. Neither additive upgrade relabels historical issues, alters Auth identities/password hashes, or deletes evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
+Existing installations apply **only the unapplied migration(s)**. These additive upgrades do not relabel historical issues, alter Auth identities/password hashes, or delete evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
 
-Using the authenticated Supabase CLI:
+Using the authenticated Supabase CLI 3 (explicit hosted target):
 
 ```sh
 supabase login
-supabase link --project-ref sfccsrznnxivtmcixlwd
-supabase db push
+supabase migration up --remote=sfccsrznnxivtmcixlwd
 ```
 
-Or paste each unapplied file into Supabase SQL Editor inside `BEGIN;` / `COMMIT;`. For an existing installation, apply each unapplied migration in order. For example, if all earlier migrations are already applied:
+If earlier files were applied manually and are not in CLI migration history, use SQL Editor again for the new file instead of rerunning the older files. Paste each unapplied file into Supabase SQL Editor inside `BEGIN;` / `COMMIT;`. For an existing installation, apply each unapplied migration in order. For example, if all earlier migrations are already applied:
 
 ```sh
 psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 \
-  -f supabase/migrations/20261029155023_case_votes_and_comments.sql
+  -f supabase/migrations/20261104213249_trending_issues_and_live_overview.sql
 ```
 
 Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public issue and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
 
-Browsing uses literal substring search with a GIN trigram index, constitution filtering, `(created_at,id)` keyset ordering and a 13-row lookahead to display 12. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
+All Issues uses literal substring search with a GIN trigram index and constitution filtering, and always ranks by `(upvotes DESC, created_at DESC, id DESC)`. Downvotes and issue age do not reduce the upvote score; newer creation times and IDs break ties only. Each SQL query returns ten rows plus one look-ahead, and the app displays ten before **Load more** appends the next ten. My Issues retains its existing date sorting and 12-row pages. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
 
 For local Supabase with Docker:
 
@@ -119,7 +119,7 @@ Comments are escaped plain text, 1–2,000 characters, with relative timestamps.
 
 Authenticated SDK calls invoke restricted transactional RPCs; ordinary users cannot write the public table directly or read/forge ballots and ownership. Blank/oversized comments, cross-issue parents, deeper nesting through direct RPCs, hidden issues, and another author’s deletion are rejected by SQL. Client-generated comment IDs make network retries idempotent. Failed requests retain typed text. Feed summaries fetch counts and at most two previews for up to 12 issues in one batch. A discussion outage leaves the issue readable and offers Retry discussion.
 
-Apply the additive `20261029155023_case_votes_and_comments.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing issues.
+Apply the additive `20261104213249_trending_issues_and_live_overview.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing issues.
 
 ## Historical Storage housekeeping
 
@@ -132,6 +132,18 @@ Owner deletion still hides an issue, removes its images using the Supabase SDK, 
 ```sh
 curl --fail --request POST --header "Authorization: Bearer $CLEANUP_SECRET" https://YOUR_APP/api/cleanup
 ```
+
+## Trending and live graphics
+
+Above the public feed, a bubble chart shows all 11 constitution totals and a ring chart shows wanted, unwanted and unclassified behavior. Counts include **all published issues**, independent of search/filter settings and loaded pages; drafts and pending deletions are excluded. Circles also act as keyboard-accessible constitution filters. Empty and update-failure states retain clear labels rather than invented data.
+
+`issue_overview()` computes bounded aggregate output in Postgres, and `browse_trending_issues()` returns a safe projection with ten results plus one look-ahead. Neither returns owner IDs, emails or individual ballots. Private ballot triggers maintain `cases.upvotes` transactionally, including vote switches/removal and account-deletion cascades. Counter writes leave issue edit versions and update dates unchanged. SQL denies direct counter and revision writes to app roles.
+
+The browser subscribes only to `public.issue_feed_state`, a singleton containing a global revision and update time. The migration adds **only this table** to the existing `supabase_realtime` publication. Private ballots, ownership and conversation content are never replicated by this feature. Confirm that **Database → Publications → supabase_realtime → issue_feed_state** is enabled after installation. The local-only test harness has no hosted Realtime server; browser tests simulate its WebSocket protocol while all aggregate reads and fixture mutations use real PostgreSQL.
+
+Charts refresh on that signal, when the tab regains focus/visibility or connectivity, and every ten seconds as a recovery fallback. Hidden tabs skip refreshes. Requests are debounced, bounded by a timeout and cancelled on navigation. A failed update keeps the last counts and offers Retry. No new environment variables are needed.
+
+Ranking pages carry a complete `(upvotes, time, cursor, revision)` cursor, returned as `nextCursor` by `/api/issues`. Clients should send those four fields unchanged alongside search/filter settings. If a vote or published issue changes between pages, SQL returns HTTP 409 through the app API. The feed preserves current cards and typed comments, offers **Refresh issues**, and starts a fresh ten-item ranking on request; it does not silently skip or duplicate entries. Downvote-only changes do not invalidate a ranking. Legacy `/api/cases` routes remain aliases, but paginating clients must use the new cursor.
 
 ## Verification
 

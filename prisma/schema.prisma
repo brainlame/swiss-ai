@@ -29,6 +29,8 @@ model Case {
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
  version Int @default(1)
+ upvotes BigInt @default(0)
+ // SQL maintains upvotes from private ballots and adds partial descending rank indexes.
  constitution Constitution @relation(fields:[constitutionNumber], references:[number])
  screenshots CaseScreenshot[]
  owner CaseOwner?
@@ -110,4 +112,13 @@ model CommentOwner {
  @@index([userId,commentId],map:"comment_owners_user_idx")
  @@map("comment_owners")
  @@schema("private")
+}
+
+model IssueFeedState {
+ id Int @id @db.SmallInt
+ revision BigInt @default(0)
+ updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+ // SQL restricts this to id=1, denies all public writes, and replicates only this safe signal.
+ @@map("issue_feed_state")
+ @@schema("public")
 }

@@ -1,3 +1,43 @@
+# Trending issues and live overview — 2026-11-04
+
+All Issues now shows the ten highest-upvoted published issues, with **Load more** appending ten at a time. Downvotes are not subtracted. Creation time and unique issue ID break equal-score ties. Search and constitution filters execute in SQL and preserve that ranking; My Issues retains its date sort and 12-row pages.
+
+Two theme-aware graphics sit above the filters/feed: clickable constitution bubbles and a wanted/unwanted/unclassified behavior ring. They summarize all published issues, including those beyond the loaded pages, and exclude unfinished/deleting rows. Labels, visible counts, keyboard links and 44px minimum bubble targets accompany the graphics. Empty data and failed updates have explicit states; failures retain the last counts.
+
+The additive migration adds transactional upvote counters, partial rank indexes, bounded invoker RPCs, and a read-only global revision row. Only that identity-free revision row is added to the Realtime publication. Individual ballots, owners, emails and conversation content are not replicated. Private triggers maintain counters; vote writes serialize on the case to avoid lock upgrades. Counter changes preserve issue edit versions/timestamps. Stale rank cursors return a conflict so the user can refresh without silently skipping or repeating issues. Background updates keep typed comments intact; feed reordering is explicit.
+
+The overview refreshes on Realtime signals, focus/reconnection, and a ten-second fallback while visible. Requests are debounced, timed out and cancelled on unmount. A reactive refresh loop found during browser testing was fixed by limiting the refresh effect to its intended inputs; older aggregate responses cannot overwrite newer data.
+
+Verified locally:
+
+- Formatting/whitespace and Svelte/TypeScript checks pass with zero errors/warnings; Prisma schema validation passes.
+- 91 unit tests pass, including complete/invalid ranking cursors and safe integer boundaries.
+- 23 direct PostgreSQL tests pass, including counterexample downvote totals, tied-score pagination, search/filtering, safe public projections, hidden rows, counter/revision spoofing denials, idempotent vote changes, stale cursors, publish/edit/delete totals, and four simultaneous voters without lost increments/deadlocks. Existing Auth/ownership/Storage/issue/discussion regressions pass.
+- All five migrations install successfully into a fresh disposable PostgreSQL 18.6 database. Only `public.issue_feed_state` is present in its Realtime publication. Supabase CLI 3 advisors report no issues on that isolated installation.
+- All 96 browser scenarios were exercised across desktop/mobile and light/dark. The main run passed 95; one dark-mode recovery check timed out. That exact scenario then passed three consecutive traced reruns. The new scenarios cover ten-item pages, public API anonymity, live publishing/reclassification/deletion, keyboard circle filtering, global counts under filters, cursor conflicts, error retention/retry, and polling with unavailable Realtime.
+- Node and Vercel production builds pass. An anonymous query against the clean installation returns zero issues and eleven zero-count constitution buckets. Visual review covers the overview in desktop/mobile and both themes. Physical phones are emulated.
+
+Browser transport caveat: the new Realtime tests simulate the SDK WebSocket protocol; aggregate reads and outside-browser fixture mutations use real PostgreSQL. The optional real Supabase integration suite still has four skipped tests because isolated administrator credentials are not configured. Hosted Realtime delivery, email delivery and deployment were not exercised.
+
+Before deploying, apply `supabase/migrations/20261104213249_trending_issues_and_live_overview.sql` after any unapplied older migrations. Verify `issue_feed_state` is enabled under the project's `supabase_realtime` publication (the migration enables it when that publication exists). No new environment variables are needed. This update has not modified hosted citizen data or been deployed.
+
+---
+
+# Editorial UI refresh — 2026-10-30
+
+The selected direction is warm editorial: blue/white and blue/slate themes, serif page headings, generous spacing, simple line icons, and concise guidance.
+
+- Replaced the homepage’s lengthy walkthrough and duplicate navigation guide with an illustrated hero and a three-step visual workflow. Removed repeated Chatbot links from the read-only constitution cards. All 11 sample statements and their pending-policy status remain visible.
+- Added a small conversation illustration, search/community icons, and illustrated proposal callouts to the issue feed. Cards show one description excerpt rather than repeating the same passage. Open issue sits at the bottom right.
+- Shortened copy in authentication, chat, selection, hints, evidence, submission, editing, detail, voting, and comments. Required input labels are now “Proposed change” and “Constitution.” Privacy guidance, public-comment notices, simulation warnings, and read-only evidence remain explicit.
+- Graphics use local inline SVGs and theme variables, with decorative images hidden from assistive technology. No external image service, font download, or new dependency is needed. Native controls, visible focus, voting states, and existing interaction behavior are retained.
+
+Verification: formatting and whitespace checks pass; Svelte/TypeScript reports zero errors or warnings; 89 unit tests pass; production Node and Vercel builds pass. All 80 browser scenarios were exercised across desktop/mobile and light/dark. The first run passed 72 scenarios; eight failed solely because two assertions still expected the previous copy. After updating those assertions, all 16 affected/rechecked scenarios passed, covering the eight failures plus homepage and vote regressions after final spacing changes. Browser coverage includes authentication, issue CRUD, conversation selection/restoration, public browsing and pagination, votes, comments/replies, keyboard navigation, and safe rendering. Visual review covered the homepage, visual workflow, issue cards, form, and themes; phone viewports are emulated.
+
+No database, authentication, environment, or hosted-service setup changes are needed for this UI update. No hosted citizen data or deployment was changed. Existing external setup notes below still apply.
+
+---
+
 # Continuous selections and issue terminology — 2026-10-29
 
 This update adds a continuous conversation selector and renames the public product terminology from cases to issues. The selector starts with the latest complete exchange and lets users choose the first and last exchange, with every message between them included. Select all remains available. Highlighted messages are frozen as read-only issue evidence.

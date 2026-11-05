@@ -92,7 +92,7 @@ async function seed() {
       const id = 'eeeeeeee-0000-4000-8000-' + String(i + 1).padStart(12, '0'),
         path = id + '/' + randomUUID() + '.png';
       await db.query(
-        "insert into public.cases(id,constitution_number,description,improvement,status,created_at,version) values($1,$2,$3,$4,'published',$5,2)",
+        "insert into public.cases(id,constitution_number,description,improvement,status,created_at,version,behavior) values($1,$2,$3,$4,'published',$5,2,$6)",
         [
           id,
           (i % 11) + 1,
@@ -103,6 +103,7 @@ async function seed() {
             ? 'Add a commitment to explain uncertainty and verification.'
             : 'Offer clear explanations for everyday questions.',
           new Date(Date.UTC(2026, 0, 26 - i)).toISOString(),
+          i === 0 ? null : i % 2 === 0 ? 'good' : 'bad',
         ],
       );
       await db.query('insert into private.case_owners values($1,$2)', [
@@ -195,6 +196,36 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       send(500, { message: e.message });
     }
+    return;
+  }
+  if (path === '/__test/activity' && req.method === 'POST') {
+    const id = 'eeeeeeee-0000-4000-8000-000000000027';
+    if (body.action === 'publish') {
+      await pool.query(
+        "insert into public.cases(id,constitution_number,description,improvement,status,behavior) values($1,11,'Live overview fixture','Keep useful explanations','published','good')",
+        [id],
+      );
+      await pool.query('insert into private.case_owners values($1,$2)', [
+        id,
+        users[0].id,
+      ]);
+    } else if (body.action === 'reclassify') {
+      await pool.query(
+        "update public.cases set behavior='bad',constitution_number=1 where id=$1",
+        [id],
+      );
+    } else if (body.action === 'vote') {
+      await pool.query(
+        'insert into private.case_votes(case_id,user_id,value) values($1,$2,1),($1,$3,1) on conflict(case_id,user_id) do update set value=excluded.value',
+        [id, users[0].id, users[1].id],
+      );
+    } else if (body.action === 'delete')
+      await pool.query('delete from public.cases where id=$1', [id]);
+    else {
+      send(400, { message: 'Unknown fixture activity' });
+      return;
+    }
+    send(200, { id });
     return;
   }
   if (path === '/health') {
@@ -337,6 +368,8 @@ const server = http.createServer(async (req, res) => {
         'finish_delete',
         'prune_uploads',
         'browse_cases',
+        'browse_trending_issues',
+        'issue_overview',
       ];
       if (!allowed.includes(name)) throw new Error('RPC is not available');
       const keys = Object.keys(body);

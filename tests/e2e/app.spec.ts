@@ -33,6 +33,10 @@ test('homepage, persistent keyboard tabs, safe-area layout and remembered theme'
     ),
   ).toBe(true);
   await page.screenshot({ path: info.outputPath('home.png'), fullPage: true });
+  await page.screenshot({ path: info.outputPath('home-viewport.png') });
+  await page
+    .locator('.workflow')
+    .screenshot({ path: info.outputPath('workflow.png') });
   const issues = nav.getByRole('link', { name: 'All Issues', exact: true });
   await issues.focus();
   await page.keyboard.press('Enter');
@@ -72,9 +76,9 @@ test('public database browsing, search, filter, sort, load more and safe citizen
   request,
 }, info) => {
   await page.goto('/issues');
-  await expect(page.locator('.case-card')).toHaveCount(12);
+  await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
-  await expect(page.locator('.case-card')).toHaveCount(24);
+  await expect(page.locator('.case-card')).toHaveCount(20);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(26);
   await expect(
@@ -93,7 +97,6 @@ test('public database browsing, search, filter, sort, load more and safe citizen
     .getByRole('link', { name: 'Reset filters' })
     .click();
   await page.getByLabel('Constitution', { exact: true }).selectOption('2');
-  await page.getByLabel('Sort by').selectOption('oldest');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(3);
   await expect(page.getByLabel('Constitution', { exact: true })).toHaveValue(
@@ -158,9 +161,9 @@ test('load-more failures retain results and allow retry; no-match filters reset'
   });
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Try again');
-  await expect(page.locator('.case-card')).toHaveCount(12);
+  await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
-  await expect(page.locator('.case-card')).toHaveCount(24);
+  await expect(page.locator('.case-card')).toHaveCount(20);
   await page.getByLabel('Search issues').fill('there is no such fixture');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(
@@ -170,5 +173,5 @@ test('load-more failures retain results and allow retry; no-match filters reset'
     .locator('.filter-bar')
     .getByRole('link', { name: 'Reset filters' })
     .click();
-  await expect(page.locator('.case-card')).toHaveCount(12);
+  await expect(page.locator('.case-card')).toHaveCount(10);
 });

@@ -264,13 +264,11 @@
         class="notice"
         role="status"
       >
-        The submission snapshot is no longer available. Start a conversation,
-        then choose “Submit an issue” to attach it.
+        Your selection was cleared. Start a chat to submit an issue.
       </p>{/if}
     <p id="chatbot-introduction">
-      A simulated chatbot with predefined replies. Some replies are
-      intentionally flawed. Choose “Submit an issue” to attach a continuous
-      section. Your temporary chat can be restored from the unsaved issue form.
+      A simulated chatbot. Some replies are intentionally flawed. Notice
+      something? Select “Submit an issue.”
     </p>
   </div>
 
@@ -289,10 +287,7 @@
           onclick={() => (selecting = false)}>Keep chatting</button
         >
       </div>
-      <p>
-        Choose the first and last exchange. Every exchange between them is
-        included.
-      </p>
+      <p>Select a start and end. Everything in between is included.</p>
       <div class="selection-controls">
         <div>
           <label for="selection-start">First exchange</label><select
@@ -438,8 +433,7 @@
     >
   </div>
   <p id="hints-introduction">
-    One hint for each of the 50 predefined behaviors. Try these topics in your
-    own words; some replies are intentionally flawed.
+    50 topics to try in your own words. Some replies are intentionally flawed.
   </p>
   <ol class="chat-hints">
     {#each chatbotHints as hint (hint.id)}<li>

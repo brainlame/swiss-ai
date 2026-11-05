@@ -7,7 +7,7 @@
 <div class="page-heading narrow">
   <a class="back-link" href="/my-issues"> My Issues</a>
   <h1>Edit your issue</h1>
-  <p>Saved changes will appear on your public issue.</p>
+  <p>Changes are public when saved.</p>
 </div>
 <div class="narrow">
   {#key data.item.id + data.item.version}<CaseForm

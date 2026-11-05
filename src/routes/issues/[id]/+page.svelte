@@ -50,8 +50,7 @@
         Updated {date(data.item.updated_at)}
       </p>{/if}
     {#if data.cleanupWarning}<p class="notice" role="status">
-        Your changes were saved. Old image cleanup is pending and will be
-        retried by scheduled housekeeping.
+        Your changes were saved. Old images will be removed shortly.
       </p>{/if}
     {#if form?.message}<p class="notice error" role="alert">
         {form.message}
@@ -65,7 +64,7 @@
       <p class="citizen-text">{data.item.description}</p>
     </section>
     <section class="detail-section proposal">
-      <h2>Proposed constitutional improvement</h2>
+      <h2>Proposed change</h2>
       <p class="citizen-text">{data.item.improvement}</p>
     </section>
     {#if data.item.screenshots.length}<section class="detail-section">
@@ -88,7 +87,7 @@
         class="detail-discussion-section"
         aria-labelledby="discussion-title"
       >
-        <h2 id="discussion-title">Community discussion</h2>
+        <h2 id="discussion-title">Discussion</h2>
         {#key data.item.id}<CaseDiscussion
             caseId={data.item.id}
             initial={data.discussion}
@@ -107,10 +106,9 @@
   </div>
   <aside class="constitution-aside">
     <span class="pill">Constitution #{constitution?.number}</span>
-    <h2>Referenced constitution</h2>
+    <h2>The principle</h2>
     <p>{constitution?.text}</p>
-    <span class="sample-label">Sample content pending replacement</span><a
-      href="/"
+    <span class="sample-label">Sample · pending replacement</span><a href="/"
       >View all constitutions
     </a>
   </aside>
