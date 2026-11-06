@@ -263,3 +263,34 @@ test('polling refreshes the overview when realtime is unavailable', async ({
   await expect(page.locator('.donut-total strong')).toHaveText('27');
   await expect(page.locator('.live-status')).toHaveText('Auto-updating');
 });
+
+test('topic and text search apply before loading more ranked issues', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/issues');
+  await expect(page.getByLabel('Topic', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('option', { name: 'Unclassified' })).toHaveCount(
+    1,
+  );
+  const fixture = await request.post('http://127.0.0.1:54331/__test/activity', {
+    data: { action: 'topics' },
+  });
+  expect(fixture.ok()).toBe(true);
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Load more', exact: true }),
+  ).toBeEnabled();
+  await page.getByLabel('Search issues').fill('Fixture citizen perspective');
+  await page
+    .getByLabel('Topic', { exact: true })
+    .selectOption({ label: 'Citation checks' });
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page).toHaveURL(/topic=fixture-citations/);
+  await expect(page.locator('.case-card')).toHaveCount(10);
+  await page.getByRole('button', { name: 'Load more', exact: true }).click();
+  await expect(page.locator('.case-card')).toHaveCount(15);
+  await expect(
+    page.getByRole('button', { name: 'Load more', exact: true }),
+  ).toHaveCount(0);
+});

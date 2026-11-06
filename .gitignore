@@ -12,3 +12,6 @@ dist/
 .vercel/
 # Supabase CLI local cache
 supabase/.temp/
+
+# Local topic review files
+*.topic-approval.json

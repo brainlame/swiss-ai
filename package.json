@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "prisma:validate": "prisma validate",
-    "start": "node scripts/start.mjs"
+    "start": "node scripts/start.mjs",
+    "topics": "node --experimental-strip-types scripts/synthesize-topics.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

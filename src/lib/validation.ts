@@ -54,6 +54,9 @@ export function browseParams(url: URL) {
 // A rank cursor is a complete tuple; never silently restart a malformed page.
 export function trendingParams(url: URL) {
   const { p_search, p_constitution } = browseParams(url);
+  const topic = url.searchParams.get('topic') || null;
+  if (topic && (topic.length > 60 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(topic)))
+    throw new Error('Invalid topic filter.');
   const values = ['upvotes', 'time', 'cursor', 'revision'].map((key) =>
     url.searchParams.get(key),
   );
@@ -61,6 +64,7 @@ export function trendingParams(url: URL) {
     return {
       p_search,
       p_constitution,
+      p_topic: topic,
       p_upvotes: null,
       p_time: null,
       p_id: null,
@@ -86,6 +90,7 @@ export function trendingParams(url: URL) {
   return {
     p_search,
     p_constitution,
+    p_topic: topic,
     p_upvotes: Number(upvotes),
     p_time: time,
     p_id: id,

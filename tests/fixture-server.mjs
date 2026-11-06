@@ -79,6 +79,9 @@ async function seed() {
       'delete from public.cases where id in(select case_id from private.case_owners where user_id=any($1::uuid[]))',
       [users.map((u) => u.id)],
     );
+    await db.query(
+      "delete from public.issue_topics where id='fixture-citations'",
+    );
     await db.query("delete from storage.objects where bucket_id='screenshots'");
     for (const u of users)
       await db.query(
@@ -209,6 +212,11 @@ const server = http.createServer(async (req, res) => {
         id,
         users[0].id,
       ]);
+    } else if (body.action === 'topics') {
+      await pool.query(`insert into public.issue_topics(id,name) values('fixture-citations','Citation checks');
+        insert into public.issue_topic_assignments(issue_id,topic_id)
+          select id,'fixture-citations' from public.cases
+          where description like 'Fixture citizen perspective %' order by id desc limit 15;`);
     } else if (body.action === 'reclassify') {
       await pool.query(
         "update public.cases set behavior='bad',constitution_number=1 where id=$1",

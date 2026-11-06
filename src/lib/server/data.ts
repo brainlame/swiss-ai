@@ -55,6 +55,8 @@ export async function withImages<T extends { id: string }>(
 export async function browse(db: SupabaseClient, url: URL, mine = false) {
   let rows: Omit<CaseSummary, 'screenshots' | 'discussion'>[];
   let revision: string | null = null;
+  let topics: { id: string; name: string }[] = [];
+  let hasUnclassified = false;
   const pageSize = mine ? 12 : 10;
   if (mine) {
     const { data, error: e } = await db
@@ -77,6 +79,8 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
     if (e) error(503, 'Issues could not be loaded. Please retry.');
     rows = data.items;
     revision = data.revision;
+    topics = data.topics;
+    hasUnclassified = data.has_unclassified;
   }
   const visible = rows.slice(0, pageSize);
   const last = visible.at(-1);
@@ -94,6 +98,8 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
     ),
     hasMore: rows.length > pageSize,
     revision,
+    topics,
+    hasUnclassified,
     nextCursor:
       !mine && last && rows.length > pageSize
         ? {

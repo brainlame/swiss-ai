@@ -22,6 +22,8 @@
       constitutions: Constitution[];
       overview?: Overview | null;
       revision?: string | null;
+      topics?: { id: string; name: string }[];
+      hasUnclassified?: boolean;
       nextCursor?: RankingCursor | null;
     };
   } = $props();
@@ -34,6 +36,9 @@
     forceStale = $state(false),
     activity = $state(0);
   let nextCursor = $state(untrack(() => data.nextCursor ?? null));
+  let topics = $state(untrack(() => data.topics ?? []));
+  let hasUnclassified = $state(untrack(() => data.hasUnclassified ?? false));
+  const selectedTopic = $derived(page.url.searchParams.get('topic') ?? '');
   const rankingChanged = $derived(
     !data.mine &&
       (forceStale || (!!latestRevision && latestRevision !== revision)),
@@ -47,6 +52,8 @@
     const fresh = data;
     generation++;
     items = fresh.items;
+    topics = fresh.topics ?? [];
+    hasUnclassified = fresh.hasUnclassified ?? false;
     revision = fresh.revision ?? null;
     latestRevision = null;
     forceStale = false;
@@ -58,6 +65,7 @@
   const active = $derived(
     !!page.url.searchParams.get('q') ||
       !!page.url.searchParams.get('constitution') ||
+      (!data.mine && !!selectedTopic) ||
       (data.mine && page.url.searchParams.get('sort') === 'oldest'),
   );
   async function more() {
@@ -112,6 +120,8 @@
         throw new Error(result.message ?? 'Could not refresh issues.');
       if (current !== generation) return;
       items = result.items;
+      topics = result.topics;
+      hasUnclassified = result.hasUnclassified;
       hasMore = result.hasMore;
       nextCursor = result.nextCursor;
       revision = result.revision;
@@ -186,6 +196,23 @@
         >{/each}</select
     >
   </div>
+  {#if !data.mine}
+    <div>
+      <label for="topic-filter">Topic</label>
+      <select id="topic-filter" name="topic" value={selectedTopic}>
+        <option value="">All topics</option>
+        {#each topics as topic (topic.id)}
+          <option value={topic.id}>{topic.name}</option>
+        {/each}
+        {#if hasUnclassified || selectedTopic === 'unclassified'}
+          <option value="unclassified">Unclassified</option>
+        {/if}
+        {#if selectedTopic && selectedTopic !== 'unclassified' && !topics.some((topic) => topic.id === selectedTopic)}
+          <option value={selectedTopic}>Unavailable topic</option>
+        {/if}
+      </select>
+    </div>
+  {/if}
   {#if data.mine}<div>
       <label for="sort">Sort by</label><select
         id="sort"

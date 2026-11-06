@@ -49,6 +49,7 @@ An administrator must apply unapplied migrations in filename order:
 - `20261029155023_case_votes_and_comments.sql`: public comments, private comment ownership and ballots, bounded discussion reads, authenticated vote/comment mutations, and comment deletion with reply-preserving tombstones.
 - `20261104213249_trending_issues_and_live_overview.sql`: transactional vote counters, indexed ten-row trending pages, public-only aggregates and an identity-free Realtime revision signal.
 - `20261106052146_behavior_votes_and_reason_threads.sql`: behavior votes, separate reason threads, archived usefulness ballots, and support for labeled samples.
+- `20261106163043_issue_topics.sql` adds the topic catalog, assignments and public feed filter.
 
 Existing installations apply **only the unapplied migration(s)**. These additive upgrades do not relabel historical issues, alter Auth identities/password hashes, or delete evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
 
@@ -63,7 +64,7 @@ If earlier files were applied manually and are not in CLI migration history, use
 
 ```sh
 psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 \
-  -f supabase/migrations/20261106052146_behavior_votes_and_reason_threads.sql
+  -f supabase/migrations/20261106163043_issue_topics.sql
 ```
 
 Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public issue and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
@@ -157,6 +158,32 @@ The browser subscribes only to `public.issue_feed_state`, a singleton containing
 Charts refresh on that signal, when the tab regains focus/visibility or connectivity, and every ten seconds as a recovery fallback. Hidden tabs skip refreshes. Requests are debounced, bounded by a timeout and cancelled on navigation. A failed update keeps the last counts and offers Retry. No new environment variables are needed.
 
 Ranking pages carry a complete `(upvotes, time, cursor, revision)` cursor, returned as `nextCursor` by `/api/issues`. Clients should send those four fields unchanged alongside search/filter settings. If a vote or published issue changes between pages, SQL returns HTTP 409 through the app API. The feed preserves current cards and typed comments, offers **Refresh issues**, and starts a fresh ten-item ranking on request; it does not silently skip or duplicate entries. Changing only unwanted votes leaves the ranking valid. Legacy `/api/cases` routes remain aliases, but paginating clients must use the new cursor.
+
+## Topic synthesis
+
+Apply the topic migration before deploying the new feed. The job uses the project’s existing `DATABASE_URL` on a trusted development or operations machine. Set it to an administrative PostgreSQL connection for the Supabase database where you want the topics published. The sample `DATABASE_URL` targets local development. Use a direct connection or a session pooler so the job can hold its advisory lock on one connection. Install the repository dependencies with `npm ci`. Set `OPENROUTER_API_KEY` in that machine's environment or ignored `.env` file for publishing. The web app never calls OpenRouter and needs neither job credential.
+
+Prepare a review file for all published issues.
+
+```sh
+npm run topics -- prepare reviewed.topic-approval.json
+```
+
+This creates a private review file populated from the current database, including the description, proposed improvement, principle text, behavior label and conversation evidence where present. Treat the file as sensitive. Review the prefilled text and edit or redact any fields that need sanitizing. You can clear optional evidence if it contains sensitive details. Preserve each `issueId` and `fingerprint`, then set `approved` to `true` for each safe entry. The behavior label used at publication comes from the database.
+
+Exclude names, contact information, identifying context, account or record identifiers, credentials, private links and confidential details from every text field. The command checks for common sensitive patterns, while the human reviewer decides whether a summary is safe to share and still represents the issue. Leave an issue unapproved if it cannot be summarized safely. The entire run then stops before making any model calls. Keep the approval file out of source control. [NVIDIA free endpoint data terms](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free)
+
+Publish explicitly after review.
+
+```sh
+npm run topics -- publish reviewed.topic-approval.json
+```
+
+The command checks all approvals against one complete database snapshot. It calls the specified free Nemotron model with temporary references. The model invents its catalog from the approved evidence on every run. Larger corpora use batches and a reconciliation pass across provisional groups from that same run. Free endpoint failures, invalid responses and stale reviews exit nonzero. If issues or referenced principle text change during the job, prepare and review an updated file. Existing published topics stay visible throughout the job. One transaction replaces the entire catalog and advances the feed revision after the final snapshot check. A successful command prints the number of topics and issues plus the published revision.
+
+All Issues starts at **All topics**. **Unclassified** includes published issues without an assignment, including issues added after synthesis. Topic selection combines with search, the principle filter and ranked pagination.
+
+The topic integration test requires a fresh disposable database with the migrations applied. Set `TEST_TOPIC_DATABASE_URL` to that database and run `npm run test:integration`. It uses synthetic rows and a mocked provider.
 
 ## Verification
 
