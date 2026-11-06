@@ -29,7 +29,7 @@ export function validateText(
   if (description.length > 10000 || improvement.length > 10000)
     throw new Error('Keep each text field to 10,000 characters or fewer.');
   if (!Number.isInteger(constitution) || constitution < 1 || constitution > 11)
-    throw new Error('Select one of the 11 constitutions.');
+    throw new Error('Select one of the 11 principles.');
 }
 export function browseParams(url: URL) {
   const filter = Number(url.searchParams.get('constitution'));

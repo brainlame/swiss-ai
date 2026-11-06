@@ -1,4 +1,8 @@
 export type Vote = -1 | 0 | 1;
+export type DiscussionSide = 'wanted' | 'unwanted' | 'general';
+export function isDiscussionSide(value: unknown): value is DiscussionSide {
+  return value === 'wanted' || value === 'unwanted' || value === 'general';
+}
 export type Comment = {
   id: string;
   parent_id: string | null;
@@ -14,10 +18,19 @@ export type Discussion = {
   upvotes: number;
   downvotes: number;
   my_vote: Vote;
+  threads: Record<'wanted' | 'unwanted', ThreadSummary>;
+} & ThreadSummary;
+export type ThreadSummary = {
   comment_count: number;
   root_count: number;
   preview: Comment[];
 };
+export function threadSummary(
+  discussion: Discussion,
+  side: DiscussionSide,
+): ThreadSummary {
+  return side === 'general' ? discussion : discussion.threads[side];
+}
 export type CommentPage = { items: Comment[]; has_more: boolean };
 export function relativeTime(value: string, now = Date.now()) {
   const seconds = Math.max(0, Math.floor((now - Date.parse(value)) / 1000));
@@ -40,7 +53,7 @@ export function validateComment(value: unknown): asserts value is string {
 }
 export function validateVote(value: unknown): asserts value is Vote {
   if (value !== -1 && value !== 0 && value !== 1)
-    throw new Error('Choose Upvote or Downvote.');
+    throw new Error('Choose Wanted behavior or Unwanted behavior.');
 }
 export function appendComments(current: Comment[], incoming: Comment[]) {
   const ids = new Set(current.map((c) => c.id));

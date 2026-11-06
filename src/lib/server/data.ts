@@ -17,7 +17,7 @@ export async function constitutions(db: SupabaseClient) {
     .from('constitutions')
     .select('number,text,is_sample')
     .order('number');
-  if (e) error(503, 'Constitutions are unavailable. Please retry.');
+  if (e) error(503, 'Principles are unavailable. Please retry.');
   return data;
 }
 export async function withImages<T extends { id: string }>(
@@ -60,7 +60,7 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
     const { data, error: e } = await db
       .rpc('browse_cases', { ...browseParams(url), p_mine: true })
       .select(
-        'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior',
+        'id,constitution_number,description,improvement,created_at,updated_at,status,version,behavior,is_sample',
       );
     if (e) error(503, 'Issues could not be loaded. Please retry.');
     rows = (data ?? []) as typeof rows;
@@ -114,7 +114,7 @@ export async function getCase(db: SupabaseClient, id: string, owner = false) {
   const { data, error: e } = await db
     .from('cases')
     .select(
-      'id,constitution_number,description,improvement,created_at,updated_at,status,version,chat_prompt,chat_response,transcript,behavior',
+      'id,constitution_number,description,improvement,created_at,updated_at,status,version,chat_prompt,chat_response,transcript,behavior,is_sample',
     )
     .eq('id', id)
     .maybeSingle();

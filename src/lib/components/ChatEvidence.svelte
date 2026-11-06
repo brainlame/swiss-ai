@@ -3,9 +3,11 @@
   let {
     transcript,
     onback,
+    sample = false,
     backDisabled = false,
   }: {
     transcript: Transcript;
+    sample?: boolean;
     onback?: () => void | Promise<void>;
     backDisabled?: boolean;
   } = $props();
@@ -24,7 +26,9 @@
     </div>
   </div>
   <p class="helper">
-    {transcript.length} messages from the simulated chatbot.
+    {sample
+      ? 'Fictional conversation illustrating this issue.'
+      : transcript.length + ' messages from the simulated chatbot.'}
   </p>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (Long, read-only transcripts need a keyboard-focusable scroll area.) -->
   <div
@@ -41,7 +45,9 @@
           ? 'Attached user message'
           : 'Attached chatbot response'}
       >
-        <h3>{message.role === 'user' ? 'You' : 'Chatbot'}</h3>
+        <h3>
+          {message.role === 'user' ? (sample ? 'User' : 'You') : 'Chatbot'}
+        </h3>
         <p>{message.text}</p>
       </article>
     {/each}

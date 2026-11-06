@@ -25,7 +25,7 @@
 
 <svelte:head
   ><title
-    >A citizen issue · Constitution #{data.item.constitution_number} · AI Constitutions</title
+    >A citizen issue · Principle #{data.item.constitution_number} · AI Constitution</title
   ></svelte:head
 >
 <div class="detail-layout">
@@ -34,8 +34,10 @@
       All Issues</a
     >
     <div class="detail-top">
-      <span class="pill">Constitution #{data.item.constitution_number}</span
-      ><span class="muted"
+      {#if data.item.is_sample}<span class="sample-label">Sample issue</span
+        >{/if}
+      <span class="pill">Principle #{data.item.constitution_number}</span><span
+        class="muted"
         >Anonymous · <time datetime={data.item.created_at}
           >{date(data.item.created_at)}</time
         ></span
@@ -45,7 +47,10 @@
     <p class="behavior-label" class:good={data.item.behavior === 'good'}>
       {behaviorLabel(data.item.behavior)}
     </p>
-    {#if transcript}<ChatEvidence {transcript} />{/if}
+    {#if transcript}<ChatEvidence
+        {transcript}
+        sample={data.item.is_sample}
+      />{/if}
     {#if data.item.version > 2}<p class="helper">
         Updated {date(data.item.updated_at)}
       </p>{/if}
@@ -91,6 +96,7 @@
         {#key data.item.id}<CaseDiscussion
             caseId={data.item.id}
             initial={data.discussion}
+            sample={data.item.is_sample}
             signedIn={!!page.data.signedIn}
           />{/key}
       </section>{/if}
@@ -105,11 +111,11 @@
       </div>{/if}
   </div>
   <aside class="constitution-aside">
-    <span class="pill">Constitution #{constitution?.number}</span>
+    <span class="pill">Principle #{constitution?.number}</span>
     <h2>The principle</h2>
     <p>{constitution?.text}</p>
     <span class="sample-label">Sample · pending replacement</span><a href="/"
-      >View all constitutions
+      >View all principles
     </a>
   </aside>
 </div>

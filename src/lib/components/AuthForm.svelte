@@ -28,7 +28,7 @@
   };
 </script>
 
-<svelte:head><title>Sign in · AI Constitutions</title></svelte:head>
+<svelte:head><title>Sign in · AI Constitution</title></svelte:head>
 <div class="auth-shell">
   <h1>{step === 'verify' ? 'Check your email' : 'Sign in or join'}</h1>
   <p class="muted">

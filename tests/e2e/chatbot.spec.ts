@@ -257,7 +257,7 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
   await page
     .getByLabel('Proposed change', { exact: false })
     .fill('Explain how an answer can be verified.');
-  await page.getByLabel('Constitution', { exact: false }).selectOption('2');
+  await page.getByRole('combobox', { name: /^Principle/ }).selectOption('2');
   await page.getByRole('radio', { name: 'Good / wanted behavior' }).check();
   await page.screenshot({
     path: info.outputPath('conversation-case-form.png'),

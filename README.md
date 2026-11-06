@@ -1,6 +1,6 @@
-# AI Constitutions
+# AI Constitution
 
-A responsive SvelteKit/TypeScript app for contributing chatbot behavior examples and proposed changes to 11 sample constitutional principles. Blue/white and blue/black themes respect the system preference and remember a manual selection. The working title and all sample statements are replaceable. Voting and anonymous discussions help people highlight useful issues. Formal review and model training remain future work.
+A responsive SvelteKit/TypeScript app for contributing chatbot behavior examples and proposed changes to 11 sample constitutional principles. Blue/white and blue/black themes respect the system preference and remember a manual selection. The working title and all sample statements are replaceable. Behavior votes and anonymous reason threads help people discuss what the AI should keep or change. Formal review and model training remain future work.
 
 ## Install and run locally
 
@@ -22,8 +22,8 @@ The fixed bottom tabs are **Home**, **Chatbot**, and **All Issues**, on desktop 
 1. Sign in or join at `/signin` with an emailed six-digit code.
 2. Open Chatbot and send messages. Hints opens a keyboard-accessible dialog with one clue for each of the 50 predefined behaviors. This is a simulation; some replies are intentionally flawed.
 3. Choose **Submit an issue** in Chatbot. Set the first and last exchange to select a continuous section. The latest exchange is selected initially; **Select all** includes the whole chat. Choose **Continue to issue** to attach only the highlighted messages.
-4. Review the read-only message bubbles, describe the issue, choose bad / unwanted (new-issue default) or good / wanted behavior, propose an improvement, and select exactly one constitution. **Back to chat** restores the full conversation and its highlighted range; form text and selections are retained when returning to the issue form.
-5. Submit to publish. Anyone can find the issue in All Issues, search both text fields, filter by constitution, and load more in upvote order. Owners can edit issue fields and classification, or delete their issue.
+4. Review the read-only message bubbles, describe the issue, choose bad / unwanted (new-issue default) or good / wanted behavior, propose an improvement, and select exactly one principle. **Back to chat** restores the full conversation and its highlighted range; form text and selections are retained when returning to the issue form.
+5. Submit to publish. Anyone can find the issue in All Issues, search both text fields, filter by principle, and load more in order of wanted votes. Owners can edit issue fields and classification, or delete their issue.
 
 Active chats stay in browser memory, without saved history, local/session storage, message URLs or application logs. Only one unsaved issue flow is retained while navigating between Chatbot and the form. **Back to chat** restores all messages, the selected range and any unsent chat draft. A temporary copy of the form fields also survives this round trip. No unselected messages are sent to the issue API or database. Leaving this two-page workflow, signing out, refreshing, or successfully submitting clears this return context. `/submit` without a handoff redirects into Chatbot. A query parameter alone cannot supply evidence. JavaScript is required for the simulation and its form.
 
@@ -43,11 +43,12 @@ SQL migrations are authoritative. Do not use `prisma db push` or Prisma migratio
 
 An administrator must apply unapplied migrations in filename order:
 
-- `20261012000000_initial.sql`: schema, private owner mapping, RLS, Storage, search/browsing indexes and exactly 11 sample constitutions.
+- `20261012000000_initial.sql`: schema, private owner mapping, RLS, Storage, search/browsing indexes and exactly 11 sample principles.
 - `20261015000000_chat_exchange_evidence.sql`: historical prompt/reply support.
 - `20261023000453_conversation_cases_and_email_codes.sql`: nullable transcript/classification columns, bounded transcript checks, immutable evidence, atomic `save_case`, retired creation/upload RPC access, and a restricted password rejection hook.
 - `20261029155023_case_votes_and_comments.sql`: public comments, private comment ownership and ballots, bounded discussion reads, authenticated vote/comment mutations, and comment deletion with reply-preserving tombstones.
-- `20261104213249_trending_issues_and_live_overview.sql`: transactional upvote counters, indexed ten-row trending pages, public-only aggregates and an identity-free Realtime revision signal.
+- `20261104213249_trending_issues_and_live_overview.sql`: transactional vote counters, indexed ten-row trending pages, public-only aggregates and an identity-free Realtime revision signal.
+- `20261106052146_behavior_votes_and_reason_threads.sql`: behavior votes, separate reason threads, archived usefulness ballots, and support for labeled samples.
 
 Existing installations apply **only the unapplied migration(s)**. These additive upgrades do not relabel historical issues, alter Auth identities/password hashes, or delete evidence. The conversation migration (`20261023000453`) retires `begin_case` / `commit_case` and revokes `reserve_upload` from app users: deploy the matching app immediately after the migration, because old app versions use those RPCs. Existing incomplete legacy drafts are kept private and can be removed by housekeeping rather than published through the retired flow.
 
@@ -62,12 +63,12 @@ If earlier files were applied manually and are not in CLI migration history, use
 
 ```sh
 psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 \
-  -f supabase/migrations/20261104213249_trending_issues_and_live_overview.sql
+  -f supabase/migrations/20261106052146_behavior_votes_and_reason_threads.sql
 ```
 
 Keep `private` and `storage` out of the Data API exposed schemas. Public rows contain no owner IDs/emails; ownership is in `private.case_owners`. New creation binds `auth.uid()` without accepting an owner parameter. Restricted security-definer RPCs enforce ownership/version checks because ordinary clients have no direct table-write grants. `save_case` inserts a complete public issue and private owner atomically; UUID retries and a transaction lock prevent duplicate creation. Exact retried saves are idempotent. Older evidence is immutable. Existing screenshot bucket/policies remain intact. Review pre-existing policies when installing into a shared project.
 
-All Issues uses literal substring search with a GIN trigram index and constitution filtering, and always ranks by `(upvotes DESC, created_at DESC, id DESC)`. Downvotes and issue age do not reduce the upvote score; newer creation times and IDs break ties only. Each SQL query returns ten rows plus one look-ahead, and the app displays ten before **Load more** appends the next ten. My Issues retains its existing date sorting and 12-row pages. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
+All Issues uses literal substring search with a GIN trigram index and principle filtering. It ranks by wanted vote count with creation time and issue ID as tie breakers. The underlying cursor still uses the `upvotes` field. Each SQL query returns ten rows plus one look-ahead, and the app displays ten before **Load more** appends the next ten. My Issues retains its existing date sorting and 12-row pages. Pagination is in SQL, query state is in the URL, and appended results are deduplicated. Browse responses omit full transcripts; cards include descriptions and proposed improvements, and detail pages retrieve the evidence separately so long conversations do not inflate every feed page.
 
 For local Supabase with Docker:
 
@@ -109,7 +110,7 @@ After saving, request a **new** code from the app and check the newest email. Al
 
 ## Voting and anonymous discussions
 
-All Issues uses wider reading cards with an issue description, proposed improvement, voting bar, comments and an **Open issue** link. Issue detail pages share the same discussion component and data. An upvote means “this is a useful issue worth highlighting”; it does not label the model’s behavior good or bad and does not approve the proposed constitutional change.
+All Issues uses wider reading cards with an issue description, proposed improvement, voting bar, comments and an **Open issue** link. Issue detail pages share the same discussion component and data. Choose **Wanted behavior** or **Unwanted behavior** to vote on the chatbot response. A vote opens its matching reason thread. Readers can switch threads independently, and replies stay on the side where the thread began. The constitution is the collection of all 11 numbered principles.
 
 Anyone can read vote totals, the two newest top-level comment previews and expanded threads. Signing in is required to vote, comment or reply. An account has one ballot per issue; choosing the other vote switches it, and selecting the current vote removes it. Vote buttons retain the reference design’s green/red selected states and use explicit text/pressed states. Empty vote totals have an unfilled bar.
 
@@ -119,7 +120,7 @@ Comments are escaped plain text, 1–2,000 characters, with relative timestamps.
 
 Authenticated SDK calls invoke restricted transactional RPCs; ordinary users cannot write the public table directly or read/forge ballots and ownership. Blank/oversized comments, cross-issue parents, deeper nesting through direct RPCs, hidden issues, and another author’s deletion are rejected by SQL. Client-generated comment IDs make network retries idempotent. Failed requests retain typed text. Feed summaries fetch counts and at most two previews for up to 12 issues in one batch. A discussion outage leaves the issue readable and offers Retry discussion.
 
-Apply the additive `20261104213249_trending_issues_and_live_overview.sql` migration before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. The migration does not add fixture comments or change existing issues.
+Apply `20261106052146_behavior_votes_and_reason_threads.sql` before deploying this version. Existing installations must also apply earlier migrations if they have not already done so. No new environment variables or third-party service is needed. Earlier usefulness ballots are archived privately. Earlier comments are available under **Earlier discussion**, and behavior totals start with the new ballots.
 
 ## Historical Storage housekeeping
 
@@ -133,9 +134,21 @@ Owner deletion still hides an issue, removes its images using the Supabase SDK, 
 curl --fail --request POST --header "Authorization: Bearer $CLEANUP_SECRET" https://YOUR_APP/api/cleanup
 ```
 
+## Optional sample issues
+
+The seed includes 50 fictional issue reports across all 11 principles. Each has an example conversation, an observation, a proposed change, and sample wanted and unwanted vote counts. The app labels the records as sample issues and discloses the sample tallies. Real ballots cast on a sample add to its displayed totals.
+
+After applying the behavior-votes migration, load the seed into a development or demo database with administrative access.
+
+```sh
+psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/examples/sample_issues.sql
+```
+
+You can also run the seed in that project's SQL Editor. Stable issue IDs make repeat imports safe and preserve subsequent votes and comments.
+
 ## Trending and live graphics
 
-Above the public feed, a bubble chart shows all 11 constitution totals and a ring chart shows wanted, unwanted and unclassified behavior. Counts include **all published issues**, independent of search/filter settings and loaded pages; drafts and pending deletions are excluded. Circles also act as keyboard-accessible constitution filters. Empty and update-failure states retain clear labels rather than invented data.
+Above the public feed, a bubble chart shows all 11 principle totals and a ring chart shows the behavior labels supplied by issue authors. Counts include **all published issues**, independent of search/filter settings and loaded pages; drafts and pending deletions are excluded. Circles also act as keyboard-accessible principle filters. Empty and update-failure states retain clear labels rather than invented data.
 
 `issue_overview()` computes bounded aggregate output in Postgres, and `browse_trending_issues()` returns a safe projection with ten results plus one look-ahead. Neither returns owner IDs, emails or individual ballots. Private ballot triggers maintain `cases.upvotes` transactionally, including vote switches/removal and account-deletion cascades. Counter writes leave issue edit versions and update dates unchanged. SQL denies direct counter and revision writes to app roles.
 
@@ -143,7 +156,7 @@ The browser subscribes only to `public.issue_feed_state`, a singleton containing
 
 Charts refresh on that signal, when the tab regains focus/visibility or connectivity, and every ten seconds as a recovery fallback. Hidden tabs skip refreshes. Requests are debounced, bounded by a timeout and cancelled on navigation. A failed update keeps the last counts and offers Retry. No new environment variables are needed.
 
-Ranking pages carry a complete `(upvotes, time, cursor, revision)` cursor, returned as `nextCursor` by `/api/issues`. Clients should send those four fields unchanged alongside search/filter settings. If a vote or published issue changes between pages, SQL returns HTTP 409 through the app API. The feed preserves current cards and typed comments, offers **Refresh issues**, and starts a fresh ten-item ranking on request; it does not silently skip or duplicate entries. Downvote-only changes do not invalidate a ranking. Legacy `/api/cases` routes remain aliases, but paginating clients must use the new cursor.
+Ranking pages carry a complete `(upvotes, time, cursor, revision)` cursor, returned as `nextCursor` by `/api/issues`. Clients should send those four fields unchanged alongside search/filter settings. If a vote or published issue changes between pages, SQL returns HTTP 409 through the app API. The feed preserves current cards and typed comments, offers **Refresh issues**, and starts a fresh ten-item ranking on request; it does not silently skip or duplicate entries. Changing only unwanted votes leaves the ranking valid. Legacy `/api/cases` routes remain aliases, but paginating clients must use the new cursor.
 
 ## Verification
 

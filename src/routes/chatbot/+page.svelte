@@ -226,7 +226,7 @@
   }
 </script>
 
-<svelte:head><title>Chatbot · AI Constitutions</title></svelte:head>
+<svelte:head><title>Chatbot · AI Constitution</title></svelte:head>
 <svelte:window
   onpagehide={resetConversation}
   onpageshow={() => (active = true)}

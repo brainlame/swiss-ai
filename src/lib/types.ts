@@ -14,6 +14,7 @@ export type CaseRecord = {
   status: string;
   version: number;
   transcript: import('#lib/chat-evidence.js').Transcript | null;
+  is_sample: boolean;
   behavior: 'good' | 'bad' | null;
   chat_prompt: string | null;
   chat_response: string | null;
@@ -44,6 +45,7 @@ export type CaseSummary = Pick<
   | 'status'
   | 'version'
   | 'behavior'
+  | 'is_sample'
   | 'screenshots'
 > & {
   discussion: import('#lib/discussion.js').Discussion | null;

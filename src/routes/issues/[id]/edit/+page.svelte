@@ -3,7 +3,7 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>Edit your issue · AI Constitutions</title></svelte:head>
+<svelte:head><title>Edit your issue · AI Constitution</title></svelte:head>
 <div class="page-heading narrow">
   <a class="back-link" href="/my-issues"> My Issues</a>
   <h1>Edit your issue</h1>

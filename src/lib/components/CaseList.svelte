@@ -128,7 +128,7 @@
 </script>
 
 <svelte:head
-  ><title>{data.mine ? 'My Issues' : 'All Issues'} · AI Constitutions</title
+  ><title>{data.mine ? 'My Issues' : 'All Issues'} · AI Constitution</title
   ></svelte:head
 >
 <div class="page-heading issues-heading">
@@ -176,13 +176,13 @@
     </div>
   </div>
   <div>
-    <label for="filter">Constitution</label><select
+    <label for="filter">Principle</label><select
       id="filter"
       name="constitution"
       value={page.url.searchParams.get('constitution') ?? ''}
-      ><option value="">All constitutions</option
+      ><option value="">All principles</option
       >{#each data.constitutions as c}<option value={String(c.number)}
-          >Constitution #{c.number}</option
+          >Principle #{c.number}</option
         >{/each}</select
     >
   </div>
@@ -207,9 +207,8 @@
     ><LineIcon name={data.mine ? 'edit' : 'people'} size={19} />{data.mine
       ? 'Your contributions'
       : 'Trending issues'}</span
-  >{#if !data.mine}<span class="ranking-note">Most upvoted first</span>{:else}<a
-      href="/chatbot">Open Chatbot</a
-    >{/if}
+  >{#if !data.mine}<span class="ranking-note">Most wanted votes first</span
+    >{:else}<a href="/chatbot">Open Chatbot</a>{/if}
 </div>
 {#if rankingChanged}<div class="ranking-refresh" role="status">
     <span>New activity. Refresh to see the latest issues.</span><button
@@ -229,8 +228,11 @@
       >
         <div class="case-card-content">
           <div class="case-card-top">
-            <span class="pill">Constitution #{item.constitution_number}</span
-            ><span class="behavior-label" class:good={item.behavior === 'good'}
+            {#if item.is_sample}<span class="sample-label">Sample issue</span
+              >{/if}
+            <span class="pill">Principle #{item.constitution_number}</span><span
+              class="behavior-label"
+              class:good={item.behavior === 'good'}
               >{behaviorLabel(item.behavior)}</span
             >
           </div>
@@ -267,6 +269,7 @@
           {:else}<CaseDiscussion
               caseId={item.id}
               initial={item.discussion}
+              sample={item.is_sample}
               signedIn={!!page.data.signedIn}
               onvote={() => activity++}
             />{/if}
@@ -297,7 +300,7 @@
     </h2>
     <p>
       {active
-        ? 'Try a different search or constitution.'
+        ? 'Try a different search or principle.'
         : data.mine
           ? 'Your submitted issues will appear here.'
           : 'Start a conversation in Chatbot to contribute the first issue.'}

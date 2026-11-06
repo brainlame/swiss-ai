@@ -30,12 +30,16 @@ model Case {
  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
  version Int @default(1)
  upvotes BigInt @default(0)
+ isSample Boolean @default(false) @map("is_sample")
+ sampleWantedVotes Int @default(0) @map("sample_wanted_votes")
+ sampleUnwantedVotes Int @default(0) @map("sample_unwanted_votes")
  // SQL maintains upvotes from private ballots and adds partial descending rank indexes.
  constitution Constitution @relation(fields:[constitutionNumber], references:[number])
  screenshots CaseScreenshot[]
  owner CaseOwner?
  uploads Upload[]
  votes CaseVote[]
+ legacyVotes LegacyCaseVote[]
  comments CaseComment[]
  // SQL adds partial browsing indexes and a GIN trigram expression index.
  @@map("cases")
@@ -92,14 +96,17 @@ model CaseComment {
  caseId String @map("case_id") @db.Uuid
  parentId String? @map("parent_id") @db.Uuid
  body String
+ stance String @default("general")
  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
  isDeleted Boolean @default(false) @map("is_deleted")
  case Case @relation(fields:[caseId], references:[id], onDelete:Cascade, onUpdate:NoAction)
- parent CaseComment? @relation("CommentReplies",fields:[caseId,parentId],references:[caseId,id],onDelete:NoAction,onUpdate:NoAction)
+ parent CaseComment? @relation("CommentReplies",fields:[caseId,parentId,stance],references:[caseId,id,stance],onDelete:NoAction,onUpdate:NoAction)
  replies CaseComment[] @relation("CommentReplies")
  owner CommentOwner?
  // SQL checks bounded nonblank text/tombstones; RPCs restrict parents to roots.
  @@unique([caseId,id])
+ @@unique([caseId,id,stance])
+ @@index([caseId,stance,parentId,createdAt,id],map:"case_comments_stance_page_idx")
  @@index([caseId,parentId,createdAt,id],map:"case_comments_thread_idx")
  @@map("case_comments")
  @@schema("public")
@@ -121,4 +128,16 @@ model IssueFeedState {
  // SQL restricts this to id=1, denies all public writes, and replicates only this safe signal.
  @@map("issue_feed_state")
  @@schema("public")
+}
+
+model LegacyCaseVote {
+ caseId String @map("case_id") @db.Uuid
+ userId String @map("user_id") @db.Uuid
+ value Int @db.SmallInt
+ createdAt DateTime @map("created_at") @db.Timestamptz
+ case Case @relation(fields:[caseId], references:[id], onDelete:Cascade, onUpdate:NoAction)
+ @@id([caseId,userId])
+ @@index([userId],map:"legacy_case_votes_user_idx")
+ @@map("legacy_case_votes")
+ @@schema("private")
 }

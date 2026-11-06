@@ -219,14 +219,14 @@
           rows="6"
           disabled={busy}
           aria-describedby="improvement-help"
-          placeholder="I propose changing this constitution to… because…"
+          placeholder="I propose changing this principle to… because…"
         ></textarea>
       </div>
     </section>
     <section class="form-section" aria-label="Principle selection">
       <div class="field-body">
         <label id="constitution-label" for="constitution"
-          >Constitution <span class="required" aria-hidden="true">Required</span
+          >Principle <span class="required" aria-hidden="true">Required</span
           ></label
         >
         <p class="helper">Which sample principle would you change?</p>
@@ -235,12 +235,12 @@
           bind:value={constitution}
           required
           disabled={busy}
-          ><option value={0} disabled>Select a constitution</option
+          ><option value={0} disabled>Select a principle</option
           >{#each constitutions as c}<option value={c.number}
-              >Constitution #{c.number}</option
+              >Principle #{c.number}</option
             >{/each}</select
         >{#if selected}<div class="selected-constitution">
-            <span class="pill">Constitution #{selected.number}</span><span
+            <span class="pill">Principle #{selected.number}</span><span
               class="sample-label">Sample content</span
             >
             <p>{selected.text}</p>

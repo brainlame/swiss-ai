@@ -282,6 +282,47 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         Array(13).fill(caseId),
       ]);
     });
+    it('keeps reason threads separate and rejects cross-side replies', async () => {
+      const wanted = randomUUID(),
+        unwanted = randomUUID();
+      await role('authenticated', owner);
+      await db.query(
+        "select public.post_case_comment($1,$2,'Worth keeping',null,'wanted')",
+        [caseId, wanted],
+      );
+      await db.query(
+        "select public.post_case_comment($1,$2,'Needs a source',null,'unwanted')",
+        [caseId, unwanted],
+      );
+      await denied(
+        "select public.post_case_comment($1,$2,'Wrong thread',$3,'unwanted')",
+        [caseId, randomUUID(), wanted],
+      );
+      await denied(
+        "select public.post_case_comment($1,$2,'Worth keeping',null,'unwanted')",
+        [caseId, wanted],
+      );
+      await denied('select * from private.legacy_case_votes');
+      await role('anon');
+      const data = await summary();
+      expect(
+        data.threads.wanted.preview.map((c: { id: string }) => c.id),
+      ).toEqual([wanted]);
+      expect(
+        data.threads.unwanted.preview.map((c: { id: string }) => c.id),
+      ).toEqual([unwanted]);
+      const result = await db.query(
+        "select public.discussion_comments($1,p_stance=>'wanted') as data",
+        [caseId],
+      );
+      expect(
+        result.rows[0].data.items.map((c: { id: string }) => c.id),
+      ).toEqual([wanted]);
+      await denied(
+        "select public.discussion_comments($1,$2,p_stance=>'unwanted')",
+        [caseId, wanted],
+      );
+    });
     it('hides discussion as soon as case deletion begins and cascades public/private records', async () => {
       await role('authenticated', owner);
       await db.query('select public.begin_delete($1)', [caseId]);

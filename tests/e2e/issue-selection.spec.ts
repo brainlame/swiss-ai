@@ -56,7 +56,7 @@ test('selects a continuous section, restores the full chat and keeps issue-form 
   await page
     .getByLabel('Proposed change', { exact: false })
     .fill('Explain useful reasoning and how advice can be verified.');
-  await page.getByLabel('Constitution', { exact: false }).selectOption('4');
+  await page.getByRole('combobox', { name: /^Principle/ }).selectOption('4');
   await page.getByRole('radio', { name: 'Good / wanted behavior' }).check();
   await evidence
     .getByRole('button', { name: 'Back to chat', exact: true })
@@ -88,7 +88,7 @@ test('selects a continuous section, restores the full chat and keeps issue-form 
   await expect(page.getByLabel('Description', { exact: false })).toHaveValue(
     'A focused issue about the selected exchanges.',
   );
-  await expect(page.getByLabel('Constitution', { exact: false })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: /^Principle/ })).toHaveValue(
     '4',
   );
   await expect(

@@ -66,7 +66,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header>
   <div class="header-inner">
-    <a class="brand" href="/" onclick={close}>AI Constitutions</a>
+    <a class="brand" href="/" onclick={close}>AI Constitution</a>
     <div class="header-actions">
       <button
         class="theme-button"
@@ -123,7 +123,7 @@
   ></div>{/if}
 <main id="main" tabindex="-1">{@render children()}</main>
 <footer>
-  <a class="footer-brand" href="/">AI Constitutions</a><span
+  <a class="footer-brand" href="/">AI Constitution</a><span
     >Sample principles, open for discussion.</span
   >
 </footer>

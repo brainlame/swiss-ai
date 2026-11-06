@@ -1,6 +1,10 @@
 import { error, json } from '@sveltejs/kit';
 import { UUID } from '#lib/validation.js';
-import { validateComment, validateVote } from '#lib/discussion.js';
+import {
+  isDiscussionSide,
+  validateComment,
+  validateVote,
+} from '#lib/discussion.js';
 import { discussions } from '#lib/server/discussion.js';
 const checkedId = (id: string) => {
   if (!UUID.test(id)) error(404, 'Issue not found.');
@@ -13,6 +17,8 @@ export const GET = async ({ params, url, locals }) => {
     if (!data[0]) error(404, 'Issue not found.');
     return json(data[0]);
   }
+  const stance = url.searchParams.get('stance') ?? 'general';
+  if (!isDiscussionSide(stance)) error(400, 'Invalid discussion side.');
   const parent = url.searchParams.get('parent'),
     time = url.searchParams.get('time'),
     cursor = url.searchParams.get('cursor');
@@ -28,6 +34,7 @@ export const GET = async ({ params, url, locals }) => {
     p_parent: parent,
     p_time: time,
     p_id: cursor,
+    p_stance: stance,
   });
   if (e)
     error(
@@ -77,6 +84,8 @@ export const POST = async ({ params, url, locals, request }) => {
     rpc = 'vote_case';
     args = { p_case: params.id, p_value: body.value };
   } else if (body.action === 'comment') {
+    if (body.stance !== undefined && !isDiscussionSide(body.stance))
+      error(400, 'Invalid discussion side.');
     try {
       validateComment(body.body);
     } catch (e) {
@@ -95,6 +104,7 @@ export const POST = async ({ params, url, locals, request }) => {
       p_id: body.id,
       p_body: body.body,
       p_parent: body.parent,
+      ...(body.stance === undefined ? {} : { p_stance: body.stance }),
     };
   } else if (body.action === 'delete') {
     if (typeof body.id !== 'string' || !UUID.test(body.id))

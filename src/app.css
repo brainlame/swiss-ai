@@ -2597,3 +2597,34 @@ body {
     transition: none;
   }
 }
+
+.reason-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.reason-switch button {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+.reason-switch button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.vote-choice svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 420px) {
+  .vote-choice {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+}

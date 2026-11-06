@@ -141,7 +141,7 @@ test('live graphics react to outside publishing, classification and deletion; ci
   const stats = await (await request.get('/api/issues/overview')).json();
   await expect(
     page.getByRole('link', {
-      name: `Constitution #11: ${stats.constitutions[10].count} issues. Filter issues.`,
+      name: `Principle #11: ${stats.constitutions[10].count} issues. Filter issues.`,
       exact: true,
     }),
   ).toBeVisible();
@@ -242,18 +242,24 @@ test('polling refreshes the overview when realtime is unavailable', async ({
   page,
   request,
 }) => {
-  await page.routeWebSocket('**/realtime/v1/websocket**', (socket) =>
-    socket.close(),
-  );
+  let socketAttempted!: () => void;
+  const attempted = new Promise<void>((resolve) => (socketAttempted = resolve));
+  await page.routeWebSocket('**/realtime/v1/websocket**', (socket) => {
+    socketAttempted();
+    socket.close();
+  });
   await page.clock.install();
   const initial = page.waitForResponse('**/api/issues/overview');
   await page.goto('/issues');
-  await initial;
+  await Promise.all([initial, attempted]);
+  await expect(
+    page.getByRole('button', { name: 'Refresh overview' }),
+  ).toBeEnabled();
   await expect(page.locator('.donut-total strong')).toHaveText('26');
   await request.post('http://127.0.0.1:54331/__test/activity', {
     data: { action: 'publish' },
   });
-  await page.clock.fastForward(11000);
+  await page.clock.runFor(11000);
   await expect(page.locator('.donut-total strong')).toHaveText('27');
   await expect(page.locator('.live-status')).toHaveText('Auto-updating');
 });

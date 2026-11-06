@@ -17,15 +17,15 @@ test('public issue cards show voting, anonymous relative-time comments and pagin
     .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   await expect(
-    card.getByRole('button', { name: 'Upvote', exact: true }),
+    card.getByRole('button', { name: 'Wanted behavior', exact: true }),
   ).toBeVisible();
   await expect(
-    card.getByRole('button', { name: 'Downvote', exact: true }),
+    card.getByRole('button', { name: 'Unwanted behavior', exact: true }),
   ).toBeVisible();
   await expect(card.locator('.vote-summary')).toContainText('2 votes');
   await expect(card.locator('.discussion-comment')).toHaveCount(2);
   await expect(
-    card.getByLabel('Add a comment', { exact: true }),
+    card.getByLabel('Add a wanted reason', { exact: true }),
   ).toHaveAttribute('readonly', '');
   await expect(card.locator('.comment-heading strong').first()).toHaveText(
     'Anonymous',
@@ -77,7 +77,7 @@ test('public issue cards show voting, anonymous relative-time comments and pagin
     page.getByRole('heading', { name: 'Discussion', exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Upvote', exact: true }),
+    page.getByRole('button', { name: 'Wanted behavior', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Reply', exact: true }),
@@ -91,8 +91,8 @@ test('signed-in votes toggle, persist and stay synchronized between cards and de
   const card = page
     .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
-  const up = card.getByRole('button', { name: 'Upvote', exact: true }),
-    down = card.getByRole('button', { name: 'Downvote', exact: true });
+  const up = card.getByRole('button', { name: 'Wanted behavior', exact: true }),
+    down = card.getByRole('button', { name: 'Unwanted behavior', exact: true });
   await expect(up).toHaveAttribute('aria-pressed', 'true');
   await up.click();
   await expect(up).toHaveAttribute('aria-pressed', 'false');
@@ -103,15 +103,17 @@ test('signed-in votes toggle, persist and stay synchronized between cards and de
   await card.getByRole('link', { name: 'Open issue', exact: true }).click();
   await expect(page).toHaveURL('/issues/' + caseId);
   await expect(
-    page.getByRole('button', { name: 'Downvote', exact: true }),
+    page.getByRole('button', { name: 'Unwanted behavior', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Upvote', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Wanted behavior', exact: true })
+    .click();
   await expect(
-    page.getByRole('button', { name: 'Upvote', exact: true }),
+    page.getByRole('button', { name: 'Wanted behavior', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await expect(
-    page.getByRole('button', { name: 'Upvote', exact: true }),
+    page.getByRole('button', { name: 'Wanted behavior', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
 });
 test('comments and replies preserve text on failure, render safely, persist and allow author deletion', async ({
@@ -122,7 +124,7 @@ test('comments and replies preserve text on failure, render safely, persist and 
     .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
   const message = 'Useful example <img src=x onerror="window.injected=true">';
-  await card.getByLabel('Add a comment', { exact: true }).fill(message);
+  await card.getByLabel('Add a wanted reason', { exact: true }).fill(message);
   let failOnce = true;
   await page.route('**/api/issues/*/discussion', async (route) => {
     if (
@@ -142,9 +144,9 @@ test('comments and replies preserve text on failure, render safely, persist and 
   });
   await card.getByRole('button', { name: 'Comment', exact: true }).click();
   await expect(card.getByRole('alert')).toContainText('Connection interrupted');
-  await expect(card.getByLabel('Add a comment', { exact: true })).toHaveValue(
-    message,
-  );
+  await expect(
+    card.getByLabel('Add a wanted reason', { exact: true }),
+  ).toHaveValue(message);
   await card.getByRole('button', { name: 'Comment', exact: true }).click();
   await expect(card.locator('.comment-body').first()).toHaveText(message);
   await expect(card.locator('.comment-body img')).toHaveCount(0);
@@ -217,7 +219,9 @@ test('signed-out voting asks for signin; comment failures can be retried without
     .getByRole('button', { name: 'Retry comments', exact: true })
     .click();
   await expect(card.locator('.comment-thread')).toHaveCount(10);
-  await card.getByRole('button', { name: 'Upvote', exact: true }).click();
+  await card
+    .getByRole('button', { name: 'Wanted behavior', exact: true })
+    .click();
   await expect(page).toHaveURL(/\/signin\?next=%2Fissues$/);
 });
 
@@ -249,4 +253,37 @@ test('a reply to a long thread appears immediately without skipping unloaded rep
   await expect(
     thread.locator('.comment-replies .comment-body').last(),
   ).toHaveText('Newest reply in a long discussion.');
+});
+
+test('voting opens the matching reason thread and both threads keep their own text', async ({
+  page,
+}) => {
+  await signin(page, 'citizen@fixtures.invalid', '/issues/' + caseId);
+  const wanted = page.getByLabel('Add a wanted reason', { exact: true });
+  await wanted.fill('It gave the reader a useful way to check the answer.');
+  await page
+    .getByRole('button', { name: 'Unwanted behavior', exact: true })
+    .click();
+  const unwanted = page.getByLabel('Add an unwanted reason', { exact: true });
+  await expect(unwanted).toBeVisible();
+  await unwanted.fill('I would still want a direct source.');
+  await page.getByRole('button', { name: 'Comment', exact: true }).click();
+  await expect(
+    page.getByText('I would still want a direct source.', { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Wanted reasons', exact: true })
+    .click();
+  await expect(wanted).toHaveValue(
+    'It gave the reader a useful way to check the answer.',
+  );
+  await expect(
+    page.getByText('I would still want a direct source.', { exact: true }),
+  ).toBeHidden();
+  await page.getByRole('button', { name: 'Comment', exact: true }).click();
+  await expect(
+    page.getByText('It gave the reader a useful way to check the answer.', {
+      exact: true,
+    }),
+  ).toBeVisible();
 });

@@ -139,7 +139,7 @@ async function seed() {
             ? 'The proposed improvement should explain when verification is especially important.'
             : 'Discussion fixture root ' + i;
       await db.query(
-        'insert into public.case_comments(id,case_id,body,created_at) values($1,$2,$3,$4)',
+        "insert into public.case_comments(id,case_id,body,created_at,stance) values($1,$2,$3,$4,'wanted')",
         [id, caseId, body, new Date(Date.now() - i * 3600000).toISOString()],
       );
       await db.query('insert into private.comment_owners values($1,$2)', [
@@ -150,7 +150,7 @@ async function seed() {
     for (let i = 1; i <= 12; i++) {
       const id = 'cccccccc-0000-4000-8000-' + String(i).padStart(12, '0');
       await db.query(
-        'insert into public.case_comments(id,case_id,parent_id,body,created_at) values($1,$2,$3,$4,$5)',
+        "insert into public.case_comments(id,case_id,parent_id,body,created_at,stance) values($1,$2,$3,$4,$5,'wanted')",
         [
           id,
           caseId,

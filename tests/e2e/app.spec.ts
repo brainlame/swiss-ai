@@ -96,15 +96,13 @@ test('public database browsing, search, filter, sort, load more and safe citizen
     .locator('.filter-bar')
     .getByRole('link', { name: 'Reset filters' })
     .click();
-  await page.getByLabel('Constitution', { exact: true }).selectOption('2');
+  await page.getByLabel('Principle', { exact: true }).selectOption('2');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(3);
-  await expect(page.getByLabel('Constitution', { exact: true })).toHaveValue(
-    '2',
-  );
+  await expect(page.getByLabel('Principle', { exact: true })).toHaveValue('2');
   expect(
     (await page.locator('.case-card .pill').allTextContents()).every(
-      (t) => t === 'Constitution #2',
+      (t) => t === 'Principle #2',
     ),
   ).toBe(true);
   const response = await request.get('/api/issues');

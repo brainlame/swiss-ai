@@ -130,9 +130,9 @@
       <figure class="principle-chart">
         <figcaption>
           <h3>Where ideas gather</h3>
-          <p>Issues by constitution. Pick a circle to explore.</p>
+          <p>Issues by principle. Pick a circle to explore.</p>
         </figcaption>
-        <div class="principle-bubbles" aria-label="Issues by constitution">
+        <div class="principle-bubbles" aria-label="Issues by principle">
           {#each overview.constitutions as c (c.number)}
             <a
               class="principle-bubble"
@@ -140,7 +140,7 @@
               class:chosen={page.url.searchParams.get('constitution') ===
                 String(c.number)}
               style:--bubble-size={44 + 30 * Math.sqrt(c.count / max) + 'px'}
-              aria-label={'Constitution #' +
+              aria-label={'Principle #' +
                 c.number +
                 ': ' +
                 c.count +
@@ -150,7 +150,7 @@
               String(c.number)
                 ? 'true'
                 : undefined}
-              title={'Constitution #' +
+              title={'Principle #' +
                 c.number +
                 ': ' +
                 (constitutions.find((p) => p.number === c.number)?.text ?? '')}
@@ -165,7 +165,7 @@
       <figure class="behavior-chart">
         <figcaption>
           <h3>What stands out</h3>
-          <p>Behavior people want to keep or change.</p>
+          <p>Behavior labels from issue authors.</p>
         </figcaption>
         <div class="behavior-graphic">
           <div class="overview-donut">

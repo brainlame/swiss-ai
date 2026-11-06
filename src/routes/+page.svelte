@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-  <title>Home · AI Constitutions</title>
+  <title>Home · AI Constitution</title>
   <meta
     name="description"
     content="Explore chatbot behavior and help shape better AI principles."
@@ -50,7 +50,7 @@
       <span class="workflow-icon"><LineIcon name="edit" size={30} /></span>
       <div>
         <h3>Suggest a change</h3>
-        <p>Explain what matters and how one constitution could improve.</p>
+        <p>Explain what matters and how one principle could improve.</p>
       </div>
     </li>
   </ol>
@@ -62,7 +62,7 @@
 
 <section class="principles" aria-labelledby="principles-heading">
   <div class="section-heading">
-    <h2 id="principles-heading">The 11 constitutions</h2>
+    <h2 id="principles-heading">The 11 principles</h2>
     <span class="pill sample">Sample content</span>
   </div>
   <p class="section-intro">
@@ -71,7 +71,7 @@
   <div class="constitution-grid">
     {#each data.constitutions as c}
       <article class="constitution-card">
-        <h3>Constitution #{c.number}</h3>
+        <h3>Principle #{c.number}</h3>
         <p>{c.text}</p>
       </article>
     {/each}
