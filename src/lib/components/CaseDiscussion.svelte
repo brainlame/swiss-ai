@@ -41,7 +41,14 @@
   });
   const endpoint = $derived('/api/issues/' + caseId + '/discussion');
   const totalVotes = $derived(
-    (discussion?.upvotes ?? 0) + (discussion?.downvotes ?? 0),
+    discussion?.total_votes ??
+      (discussion?.upvotes ?? 0) + (discussion?.downvotes ?? 0),
+  );
+  const totalComments = $derived(
+    discussion?.total_comments ??
+      (discussion?.comment_count ?? 0) +
+        (discussion?.threads.wanted.comment_count ?? 0) +
+        (discussion?.threads.unwanted.comment_count ?? 0),
   );
   const upPercent = $derived(
     totalVotes ? Math.round((discussion!.upvotes / totalVotes) * 100) : 0,
@@ -95,14 +102,11 @@
     error = '';
     try {
       await mutate({ action: 'vote', value: selected });
+      if (!selected) discussion.my_vote = 0;
       onvote?.();
       try {
         const saved = await read<Discussion>();
-        Object.assign(discussion, {
-          upvotes: saved.upvotes,
-          downvotes: saved.downvotes,
-          my_vote: saved.my_vote,
-        });
+        discussion = saved;
         if (selected) side = selected === 1 ? 'wanted' : 'unwanted';
       } catch {
         error =
@@ -118,26 +122,32 @@
 
 <section class="case-discussion" aria-label="Issue voting and discussion">
   {#if discussion}
-    <div
-      class="vote-bar"
-      role="img"
-      aria-label={`${discussion.upvotes} wanted votes and ${discussion.downvotes} unwanted votes`}
-    >
-      <span class="vote-bar-up" style:width={`${totalVotes ? upPercent : 0}%`}
-      ></span>
-      <span
-        class="vote-bar-down"
-        style:width={`${totalVotes ? 100 - upPercent : 0}%`}
-      ></span>
-    </div>
-    <div class="vote-summary">
-      <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span><span
-        class="upvote-count">{discussion.upvotes} wanted · {upPercent}%</span
-      ><span class="downvote-count"
-        >{discussion.downvotes} unwanted · {totalVotes
-          ? 100 - upPercent
-          : 0}%</span
+    {#if discussion.my_vote}
+      <div
+        class="vote-bar"
+        role="img"
+        aria-label={`${discussion.upvotes} wanted votes and ${discussion.downvotes} unwanted votes`}
       >
+        <span class="vote-bar-up" style:width={`${totalVotes ? upPercent : 0}%`}
+        ></span>
+        <span
+          class="vote-bar-down"
+          style:width={`${totalVotes ? 100 - upPercent : 0}%`}
+        ></span>
+      </div>
+    {/if}
+    <div class="vote-summary">
+      <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
+      <span>{totalComments} {totalComments === 1 ? 'comment' : 'comments'}</span
+      >
+      {#if discussion.my_vote}<span class="upvote-count"
+          >{discussion.upvotes} wanted · {upPercent}%</span
+        ><span class="downvote-count"
+          >{discussion.downvotes} unwanted · {totalVotes
+            ? 100 - upPercent
+            : 0}%</span
+        >
+      {/if}
     </div>
     <div
       class="vote-choices"
@@ -190,60 +200,36 @@
     </div>
     <p class="vote-help">
       {sample ? 'Totals include sample votes.' : 'Vote on the AI behavior.'}
-      {discussion.my_vote ? 'Select again to undo.' : ''}
+      {discussion.my_vote
+        ? 'Select again to undo.'
+        : 'Vote to see results and discussion.'}
     </p>
     {#if voting}<p class="sr-only" role="status">Saving vote…</p>{/if}
-    <div class="reason-switch" role="group" aria-label="Reason threads">
-      <button
-        type="button"
-        aria-pressed={side === 'wanted'}
-        onclick={() => (side = 'wanted')}>Wanted reasons</button
-      >
-      <button
-        type="button"
-        aria-pressed={side === 'unwanted'}
-        onclick={() => (side = 'unwanted')}>Unwanted reasons</button
-      >
-      {#if discussion.comment_count || discussion.root_count}
+    {#if discussion.my_vote}
+      <div class="reason-switch" role="group" aria-label="Reason threads">
         <button
           type="button"
-          aria-pressed={side === 'general'}
-          onclick={() => (side = 'general')}>Earlier discussion</button
+          aria-pressed={side === 'wanted'}
+          onclick={() => (side = 'wanted')}>Wanted reasons</button
         >
-      {/if}
-    </div>
-    <div hidden={side !== 'wanted'}>
-      <CommentThread
-        {caseId}
-        initial={discussion.threads.wanted}
-        side="wanted"
-        {signedIn}
-        {now}
-        {ready}
-        {signIn}
-        {read}
-        {mutate}
-      />
-    </div>
-    <div hidden={side !== 'unwanted'}>
-      <CommentThread
-        {caseId}
-        initial={discussion.threads.unwanted}
-        side="unwanted"
-        {signedIn}
-        {now}
-        {ready}
-        {signIn}
-        {read}
-        {mutate}
-      />
-    </div>
-    {#if discussion.comment_count || discussion.root_count}
-      <div hidden={side !== 'general'}>
+        <button
+          type="button"
+          aria-pressed={side === 'unwanted'}
+          onclick={() => (side = 'unwanted')}>Unwanted reasons</button
+        >
+        {#if discussion.comment_count || discussion.root_count}
+          <button
+            type="button"
+            aria-pressed={side === 'general'}
+            onclick={() => (side = 'general')}>Earlier discussion</button
+          >
+        {/if}
+      </div>
+      <div hidden={side !== 'wanted'}>
         <CommentThread
           {caseId}
-          initial={discussion}
-          side="general"
+          initial={discussion.threads.wanted}
+          side="wanted"
           {signedIn}
           {now}
           {ready}
@@ -252,6 +238,34 @@
           {mutate}
         />
       </div>
+      <div hidden={side !== 'unwanted'}>
+        <CommentThread
+          {caseId}
+          initial={discussion.threads.unwanted}
+          side="unwanted"
+          {signedIn}
+          {now}
+          {ready}
+          {signIn}
+          {read}
+          {mutate}
+        />
+      </div>
+      {#if discussion.comment_count || discussion.root_count}
+        <div hidden={side !== 'general'}>
+          <CommentThread
+            {caseId}
+            initial={discussion}
+            side="general"
+            {signedIn}
+            {now}
+            {ready}
+            {signIn}
+            {read}
+            {mutate}
+          />
+        </div>
+      {/if}
     {/if}
   {:else}<p class="discussion-error">
       Voting and comments are temporarily unavailable.

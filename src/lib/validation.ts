@@ -98,6 +98,43 @@ export function trendingParams(url: URL) {
   };
 }
 
+export function rankedParams(url: URL) {
+  const { p_search, p_constitution } = browseParams(url);
+  const sort = url.searchParams.get('sort') ?? 'trending';
+  if (!['trending', 'discussed', 'controversial'].includes(sort))
+    throw new Error('Choose a valid sort order.');
+  const topic = url.searchParams.get('topic') || null;
+  if (topic && (topic.length > 60 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(topic)))
+    throw new Error('Invalid topic filter.');
+  const offset = url.searchParams.get('offset');
+  const asof = url.searchParams.get('asof');
+  const revision = url.searchParams.get('revision');
+  if (
+    [offset, asof, revision].some((v) => v !== null) &&
+    (!offset ||
+      !/^\d{1,8}$/.test(offset) ||
+      Number(offset) > 10000000 ||
+      !asof ||
+      !/^\d{4}-\d{2}-\d{2}T/.test(asof) ||
+      !Number.isFinite(Date.parse(asof)) ||
+      !revision ||
+      !/^\d{1,19}$/.test(revision) ||
+      BigInt(revision) > 9223372036854775807n)
+  )
+    throw new Error(
+      'Invalid ranking cursor. Refresh the issues and try again.',
+    );
+  return {
+    p_search,
+    p_constitution,
+    p_topic: topic,
+    p_sort: sort,
+    p_offset: offset === null ? 0 : Number(offset),
+    p_asof: asof,
+    p_revision: revision,
+  };
+}
+
 // Shared with the SQL constraint: complete alternating pairs, bounded count and text.
 export function validateTranscript(
   value: unknown,

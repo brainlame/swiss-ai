@@ -29,6 +29,10 @@ export const GET = async ({ params, url, locals }) => {
     (time && Number.isNaN(Date.parse(time)))
   )
     error(400, 'Invalid comment page.');
+  const summary = await discussions(locals.supabase, [params.id]);
+  if (!summary) error(503, 'Discussion is unavailable. Please retry.');
+  if (!summary[0]) error(404, 'Issue not found.');
+  if (!summary[0].my_vote) error(403, 'Vote to see the discussion.');
   const { data, error: e } = await locals.supabase.rpc('discussion_comments', {
     p_case: params.id,
     p_parent: parent,

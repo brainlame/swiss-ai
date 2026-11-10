@@ -88,3 +88,38 @@ describe('trending pagination input', () => {
     expect(() => trendingParams(partial)).toThrow();
   });
 });
+
+describe('issue sorting input', () => {
+  it('defaults to trending, combines filters, and rejects malformed pagination', async () => {
+    const { rankedParams } = await import('../../src/lib/validation');
+    expect(rankedParams(new URL('https://test/issues'))).toMatchObject({
+      p_sort: 'trending',
+      p_offset: 0,
+      p_asof: null,
+      p_revision: null,
+    });
+    expect(
+      rankedParams(
+        new URL(
+          'https://test/issues?sort=discussed&q=citation&constitution=2&topic=privacy',
+        ),
+      ),
+    ).toMatchObject({
+      p_sort: 'discussed',
+      p_search: 'citation',
+      p_constitution: 2,
+      p_topic: 'privacy',
+    });
+    for (const query of [
+      'sort=invalid',
+      'offset=10',
+      'offset=-1&asof=2026-01-01T00:00:00Z&revision=2',
+      'revision=2',
+      'topic=%25',
+    ]) {
+      expect(() =>
+        rankedParams(new URL('https://test/issues?' + query)),
+      ).toThrow();
+    }
+  });
+});

@@ -377,6 +377,7 @@ const server = http.createServer(async (req, res) => {
         'prune_uploads',
         'browse_cases',
         'browse_trending_issues',
+        'browse_ranked_issues',
         'issue_overview',
       ];
       if (!allowed.includes(name)) throw new Error('RPC is not available');

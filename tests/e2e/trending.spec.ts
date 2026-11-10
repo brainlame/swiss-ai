@@ -74,17 +74,18 @@ async function realtime(page: Page) {
   return () => emit();
 }
 
-test('ten upvote-ranked issues per page, stable ties and a bounded public API', async ({
+test('ten time-ranked issues per page, stable ties and a bounded public API', async ({
   page,
   request,
 }) => {
   await page.goto('/issues');
   await expect(page.locator('.case-card')).toHaveCount(10);
-  await expect(page.getByLabel('Sort by')).toHaveCount(0);
+  await expect(page.getByLabel('Sort by')).toHaveValue('trending');
   let response = await (await request.get('/api/issues')).json();
   expect(response.items).toHaveLength(10);
-  expect(response.items[0].discussion.upvotes).toBe(1);
-  expect(response.items[0].discussion.downvotes).toBe(1);
+  expect(response.items[0].discussion.total_votes).toBe(2);
+  expect(response.items[0].discussion.total_comments).toBe(26);
+  expect(response.items[0].discussion.threads.wanted.preview).toEqual([]);
   const all = [...response.items];
   while (response.hasMore) {
     response = await (
@@ -100,9 +101,6 @@ test('ten upvote-ranked issues per page, stable ties and a bounded public API', 
   }
   expect(all).toHaveLength(26);
   expect(new Set(all.map((r: any) => r.id)).size).toBe(26);
-  expect(all.map((r: any) => r.upvotes)).toEqual(
-    all.map((r: any) => r.upvotes).sort((a: number, b: number) => b - a),
-  );
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(20);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
@@ -290,6 +288,37 @@ test('topic and text search apply before loading more ranked issues', async ({
   await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(15);
+  await expect(
+    page.getByRole('button', { name: 'Load more', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('sort dropdown preserves filters and resets pagination', async ({
+  page,
+}) => {
+  await page.goto('/issues');
+  await page.getByLabel('Search issues').fill('Fixture citizen perspective');
+  await page.getByLabel('Sort by').selectOption('discussed');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page).toHaveURL(/sort=discussed/);
+  await expect(page.locator('.case-card')).toHaveCount(10);
+  await page.getByRole('button', { name: 'Load more', exact: true }).click();
+  await expect(page.locator('.case-card')).toHaveCount(20);
+  await page.getByLabel('Sort by').selectOption('controversial');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.locator('.case-card')).toHaveCount(0);
+  await expect(page.getByLabel('Search issues')).toHaveValue(
+    'Fixture citizen perspective',
+  );
+  await page
+    .locator('.filter-bar')
+    .getByRole('link', { name: 'Reset filters', exact: true })
+    .click();
+  await expect(page.getByLabel('Sort by')).toHaveValue('trending');
+  await expect(page.locator('.case-card')).toHaveCount(10);
+  await page.getByLabel('Sort by').selectOption('controversial');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.locator('.case-card')).toHaveCount(1);
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),
   ).toHaveCount(0);

@@ -18,6 +18,8 @@ export type Discussion = {
   upvotes: number;
   downvotes: number;
   my_vote: Vote;
+  total_votes?: number;
+  total_comments?: number;
   threads: Record<'wanted' | 'unwanted', ThreadSummary>;
 } & ThreadSummary;
 export type ThreadSummary = {

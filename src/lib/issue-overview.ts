@@ -6,8 +6,7 @@ export type IssueOverview = {
   constitutions: { number: number; count: number }[];
 };
 export type RankingCursor = {
-  upvotes: number;
-  time: string;
-  cursor: string;
+  offset: number;
+  asof: string;
   revision: string;
 };

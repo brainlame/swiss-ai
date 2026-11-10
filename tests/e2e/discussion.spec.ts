@@ -23,10 +23,22 @@ test('public issue cards show voting, anonymous relative-time comments and pagin
     card.getByRole('button', { name: 'Unwanted behavior', exact: true }),
   ).toBeVisible();
   await expect(card.locator('.vote-summary')).toContainText('2 votes');
+  await expect(card.locator('.vote-summary')).toContainText('26 comments');
+  await expect(card.locator('.vote-bar')).toHaveCount(0);
+  await expect(card.locator('.discussion-comment')).toHaveCount(0);
+  await expect(card.locator('.reason-switch')).toHaveCount(0);
+  const hidden = await (
+    await request.get('/api/issues/' + caseId + '/discussion')
+  ).json();
+  expect(hidden.total_comments).toBe(26);
+  expect(hidden.threads.wanted.preview).toEqual([]);
+  expect(
+    (
+      await request.get('/api/issues/' + caseId + '/discussion?view=comments')
+    ).status(),
+  ).toBe(403);
+  await signin(page, 'citizen@fixtures.invalid', '/issues');
   await expect(card.locator('.discussion-comment')).toHaveCount(2);
-  await expect(
-    card.getByLabel('Add a wanted reason', { exact: true }),
-  ).toHaveAttribute('readonly', '');
   await expect(card.locator('.comment-heading strong').first()).toHaveText(
     'Anonymous',
   );
@@ -97,6 +109,11 @@ test('signed-in votes toggle, persist and stay synchronized between cards and de
   await up.click();
   await expect(up).toHaveAttribute('aria-pressed', 'false');
   await expect(card.locator('.vote-summary')).toContainText('1 vote');
+  await expect(card.locator('.vote-bar')).toHaveCount(0);
+  await expect(card.locator('.reason-switch')).toHaveCount(0);
+  await page.reload();
+  await expect(card.locator('.vote-bar')).toHaveCount(0);
+  await expect(card.locator('.discussion-comment')).toHaveCount(0);
   await down.click();
   await expect(down).toHaveAttribute('aria-pressed', 'true');
   await expect(card.locator('.vote-summary')).toContainText('2 votes');
@@ -190,10 +207,10 @@ test('comments and replies preserve text on failure, render safely, persist and 
     'This comment was deleted.',
   );
 });
-test('signed-out voting asks for signin; comment failures can be retried without losing previews', async ({
+test('comment failures can be retried without losing previews', async ({
   page,
 }) => {
-  await page.goto('/issues');
+  await signin(page, 'citizen@fixtures.invalid', '/issues');
   const card = page
     .getByRole('article', { name: 'Citizen issue', exact: true })
     .first();
@@ -219,10 +236,6 @@ test('signed-out voting asks for signin; comment failures can be retried without
     .getByRole('button', { name: 'Retry comments', exact: true })
     .click();
   await expect(card.locator('.comment-thread')).toHaveCount(10);
-  await card
-    .getByRole('button', { name: 'Wanted behavior', exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/signin\?next=%2Fissues$/);
 });
 
 test('a reply to a long thread appears immediately without skipping unloaded replies', async ({

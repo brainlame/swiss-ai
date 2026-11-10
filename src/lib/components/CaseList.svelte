@@ -38,6 +38,9 @@
   let nextCursor = $state(untrack(() => data.nextCursor ?? null));
   let topics = $state(untrack(() => data.topics ?? []));
   let hasUnclassified = $state(untrack(() => data.hasUnclassified ?? false));
+  const selectedSort = $derived(
+    page.url.searchParams.get('sort') ?? 'trending',
+  );
   const selectedTopic = $derived(page.url.searchParams.get('topic') ?? '');
   const rankingChanged = $derived(
     !data.mine &&
@@ -65,7 +68,7 @@
   const active = $derived(
     !!page.url.searchParams.get('q') ||
       !!page.url.searchParams.get('constitution') ||
-      (!data.mine && !!selectedTopic) ||
+      (!data.mine && (!!selectedTopic || selectedSort !== 'trending')) ||
       (data.mine && page.url.searchParams.get('sort') === 'oldest'),
   );
   async function more() {
@@ -76,10 +79,11 @@
     try {
       const params = new URLSearchParams(data.query);
       const last = items[items.length - 1];
-      params.set('time', last.created_at);
-      params.set('cursor', last.id);
-      if (data.mine) params.set('mine', 'true');
-      else if (nextCursor)
+      if (data.mine) {
+        params.set('time', last.created_at);
+        params.set('cursor', last.id);
+        params.set('mine', 'true');
+      } else if (nextCursor)
         for (const [key, value] of Object.entries(nextCursor))
           params.set(key, String(value));
       const response = await fetch('/api/issues?' + params);
@@ -112,7 +116,14 @@
     const current = generation;
     try {
       const params = new URLSearchParams(data.query);
-      for (const key of ['time', 'cursor', 'upvotes', 'revision'])
+      for (const key of [
+        'time',
+        'cursor',
+        'upvotes',
+        'revision',
+        'offset',
+        'asof',
+      ])
         params.delete(key);
       const response = await fetch('/api/issues?' + params);
       const result = await response.json();
@@ -185,6 +196,16 @@
       />
     </div>
   </div>
+  {#if !data.mine}
+    <div>
+      <label for="issue-sort">Sort by</label>
+      <select id="issue-sort" name="sort" value={selectedSort}>
+        <option value="trending">Trending</option>
+        <option value="discussed">Widely discussed</option>
+        <option value="controversial">Controversial</option>
+      </select>
+    </div>
+  {/if}
   <div>
     <label for="filter">Principle</label><select
       id="filter"
@@ -233,8 +254,17 @@
   <span class="feed-label"
     ><LineIcon name={data.mine ? 'edit' : 'people'} size={19} />{data.mine
       ? 'Your contributions'
-      : 'Trending issues'}</span
-  >{#if !data.mine}<span class="ranking-note">Most wanted votes first</span
+      : selectedSort === 'discussed'
+        ? 'Widely discussed issues'
+        : selectedSort === 'controversial'
+          ? 'Controversial issues'
+          : 'Trending issues'}</span
+  >{#if !data.mine}<span class="ranking-note"
+      >{selectedSort === 'discussed'
+        ? 'Most comments'
+        : selectedSort === 'controversial'
+          ? 'Closest vote margins'
+          : 'Votes and recency'}</span
     >{:else}<a href="/chatbot">Open Chatbot</a>{/if}
 </div>
 {#if rankingChanged}<div class="ranking-refresh" role="status">

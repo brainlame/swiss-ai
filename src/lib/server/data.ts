@@ -1,7 +1,7 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { discussions } from '#lib/server/discussion.js';
-import { browseParams, trendingParams, UUID } from '#lib/validation.js';
+import { browseParams, rankedParams, UUID } from '#lib/validation.js';
 import type { CaseRecord, CaseSummary, Screenshot } from '#lib/types.js';
 export function requireUser(event: Pick<RequestEvent, 'locals' | 'url'>) {
   if (!event.locals.user)
@@ -57,6 +57,8 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
   let revision: string | null = null;
   let topics: { id: string; name: string }[] = [];
   let hasUnclassified = false;
+  let rankingTime = '';
+  let rankingOffset = 0;
   const pageSize = mine ? 12 : 10;
   if (mine) {
     const { data, error: e } = await db
@@ -69,15 +71,17 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
   } else {
     let params;
     try {
-      params = trendingParams(url);
+      params = rankedParams(url);
     } catch (e) {
       error(400, (e as Error).message);
     }
-    const { data, error: e } = await db.rpc('browse_trending_issues', params);
+    const { data, error: e } = await db.rpc('browse_ranked_issues', params);
     if (e?.code === '40001')
       error(409, 'Issues have changed. Refresh the ranking to load more.');
     if (e) error(503, 'Issues could not be loaded. Please retry.');
     rows = data.items;
+    rankingTime = data.asof;
+    rankingOffset = data.offset;
     revision = data.revision;
     topics = data.topics;
     hasUnclassified = data.has_unclassified;
@@ -103,9 +107,8 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
     nextCursor:
       !mine && last && rows.length > pageSize
         ? {
-            upvotes: last.upvotes!,
-            time: last.created_at,
-            cursor: last.id,
+            offset: rankingOffset + pageSize,
+            asof: rankingTime,
             revision: revision!,
           }
         : null,

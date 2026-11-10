@@ -176,16 +176,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       await role('anon');
       await denied('select public.vote_case($1,1::smallint)', [ids[0]]);
     });
-    it('updates counters atomically, ignores downvote-only changes and rejects stale page cursors', async () => {
+    it('updates counters atomically, tracks downvote-only changes and rejects stale page cursors', async () => {
       await role('anon');
       const first = await browse(),
         cursor = { ...first.items[9], revision: first.revision };
       await role('authenticated', voters[14]);
-      // This account downvoted this issue: remove/re-add a downvote without affecting ranking.
+      // This account downvoted this issue: remove/re-add a downvote, affecting the new rankings.
       await db.query('select public.vote_case($1,0::smallint)', [ids[0]]);
-      expect((await overview()).revision).toBe(first.revision);
+      expect(BigInt((await overview()).revision)).toBeGreaterThan(
+        BigInt(first.revision),
+      );
       await db.query('select public.vote_case($1,-1::smallint)', [ids[0]]);
-      expect((await overview()).revision).toBe(first.revision);
+      expect(BigInt((await overview()).revision)).toBeGreaterThan(
+        BigInt(first.revision),
+      );
       await db.query('select public.vote_case($1,1::smallint)', [ids[0]]);
       const updated = await overview();
       expect(updated.revision).not.toBe(first.revision);
