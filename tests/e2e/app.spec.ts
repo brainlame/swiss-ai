@@ -25,6 +25,12 @@ test('homepage, persistent keyboard tabs, safe-area layout and remembered theme'
   await expect(page.locator('a[href^="/submit"]')).toHaveCount(0);
   await expect(
     page.getByRole('link', { name: 'Open Chatbot', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Replay tutorial' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: 'Sign up', exact: true }),
   ).toBeVisible();
   await expect(page.locator('.workflow')).toContainText('six-digit code');
   expect(

@@ -37,6 +37,7 @@
     if (sending || !exchanges.length) return;
     if (startExchange < 0) startExchange = endExchange = exchanges.length - 1;
     selecting = true;
+    window.dispatchEvent(new Event('tutorial:select'));
     caseError = '';
   }
   function setStart(event: Event) {
@@ -208,6 +209,7 @@
       },
     ];
     sending = false;
+    window.dispatchEvent(new Event('tutorial:reply'));
     await tick();
     scrollToLatest();
   }
@@ -251,6 +253,7 @@
       >
       <button
         class="button submit-conversation"
+        data-tour={selecting ? 'continue' : 'attach'}
         disabled={!ready || !messages.length || sending || openingCase}
         onclick={selecting ? createCase : beginSelection}
         >{openingCase
@@ -267,8 +270,8 @@
         Your selection was cleared. Start a chat to submit an issue.
       </p>{/if}
     <p id="chatbot-introduction">
-      A simulated chatbot. Some replies are intentionally flawed. Notice
-      something? Select “Submit an issue.”
+      Try asking the chatbot something you think it might not be able to respond to appropriately. Notice
+      a particularly helpful or unhelpful response? Select “Submit an issue.”
     </p>
   </div>
 
@@ -288,7 +291,7 @@
         >
       </div>
       <p>Select a start and end. Everything in between is included.</p>
-      <div class="selection-controls">
+      <div class="selection-controls" data-tour="selection">
         <div>
           <label for="selection-start">First exchange</label><select
             id="selection-start"
@@ -383,7 +386,12 @@
     </p>{/if}
   {#if !selecting}<div class="chat-composer-area">
       {#if caseError}<p class="notice error" role="alert">{caseError}</p>{/if}
-      <form class="chat-composer" onsubmit={send} aria-label="Send a message">
+      <form
+        class="chat-composer"
+        data-tour="message"
+        onsubmit={send}
+        aria-label="Send a message"
+      >
         <label for="chat-message" class="sr-only">Message</label>
         <textarea
           id="chat-message"

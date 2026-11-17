@@ -96,7 +96,10 @@
       if (!response.ok)
         throw new Error(result.message ?? 'Could not save. Please retry.');
       done = '/issues/' + result.id;
-      if (!item) discardIssueFlow();
+      if (!item) {
+        discardIssueFlow();
+        window.dispatchEvent(new Event('tutorial:saved'));
+      }
       await goto(done);
     } catch (e) {
       message = (e as Error).message;
@@ -151,7 +154,11 @@
         </div>
       </section>{/if}
     <section class="form-section" aria-label="Behavior classification">
-      <fieldset class="behavior-options" disabled={busy}>
+      <fieldset
+        class="behavior-options"
+        data-tour={item ? undefined : 'behavior'}
+        disabled={busy}
+      >
         <legend>Behavior <span class="required">Required</span></legend>
         <p class="helper" id="behavior-help">
           Should AI repeat this behavior or avoid it?
@@ -188,7 +195,7 @@
           ></label
         >
         <p class="helper" id="description-help">
-          What happened, and why does it matter?
+          Summarize what happened. Why does it matter?
         </p>
         <textarea
           id="description"
@@ -209,7 +216,7 @@
           ></label
         >
         <p class="helper" id="improvement-help">
-          Suggest a specific change to the principle and explain why.
+          Suggest a specific change to the principle.
         </p>
         <textarea
           id="improvement"
@@ -226,9 +233,9 @@
     <section class="form-section" aria-label="Principle selection">
       <div class="field-body">
         <label id="constitution-label" for="constitution"
-          >Principle <span class="required" aria-hidden="true">Required</span
-          ></label
-        >
+          >Principle 
+          <span class="required" aria-hidden="true">Optional</span>
+        </label>
         <p class="helper">Which sample principle would you change?</p>
         <select
           id="constitution"
@@ -255,7 +262,10 @@
       </p>{/if}
     <div class="form-footer">
       <p class="muted">Published as Anonymous. Your email stays private.</p>
-      <button class="button" disabled={busy || !!done || !ready}
+      <button
+        class="button"
+        data-tour={item ? undefined : 'submit'}
+        disabled={busy || !!done || !ready}
         >{busy ? 'Saving…' : item ? 'Save changes' : 'Submit issue'}</button
       >
     </div>

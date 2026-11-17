@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.css';
+  import Tutorial from '#lib/components/Tutorial.svelte';
   import { onMount } from 'svelte';
   import { navigating, page } from '$app/state';
   import { afterNavigate, beforeNavigate } from '$app/navigation';
@@ -139,6 +140,11 @@
             : page.url.pathname.startsWith('/issues')}
       <a
         href={tab.href}
+        data-tour={tab.href === '/chatbot'
+          ? 'chat-tab'
+          : tab.href === '/issues'
+            ? 'issues-tab'
+            : undefined}
         data-sveltekit-preload-data={tab.href === '/issues'
           ? 'false'
           : undefined}
@@ -161,3 +167,5 @@
     {/each}
   </div>
 </nav>
+
+<Tutorial account={data.tutorialAccount} autoStart={data.startTutorial} />

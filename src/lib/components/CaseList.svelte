@@ -250,7 +250,7 @@
       href={data.mine ? '/my-issues' : '/issues'}>Reset filters</a
     >{/if}
 </form>
-<div class="results-heading">
+<div class="results-heading" data-tour={data.mine ? undefined : 'issue-list'}>
   <span class="feed-label"
     ><LineIcon name={data.mine ? 'edit' : 'people'} size={19} />{data.mine
       ? 'Your contributions'

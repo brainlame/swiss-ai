@@ -1,4 +1,5 @@
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
+import { queueTutorial } from '#lib/server/tutorial.js';
 import { safeReturn } from '#lib/validation.js';
 
 const cookieName = 'email-code-challenge';
@@ -47,6 +48,7 @@ export async function authAction(
         ...state,
         message: 'Enter the six-digit code from your email.',
       });
+    const verificationStarted = Date.now();
     const { data, error } = await event.locals.supabase.auth.verifyOtp({
       email,
       token,
@@ -60,6 +62,7 @@ export async function authAction(
             ? 'Too many attempts. Please wait before trying again.'
             : 'That code is incorrect or has expired. Check the latest email, or request a new code.',
       });
+    queueTutorial(event, data.user, verificationStarted);
     event.cookies.delete(cookieName, { path: '/signin' });
     redirect(303, next);
   }

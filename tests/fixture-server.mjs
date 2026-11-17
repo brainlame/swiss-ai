@@ -269,7 +269,13 @@ const server = http.createServer(async (req, res) => {
       emailCodes.delete(body.email);
       let found = users.find((u) => u.email === body.email);
       if (!found) {
-        found = { ...users[0], id: randomUUID(), email: body.email };
+        found = {
+          ...users[0],
+          id: randomUUID(),
+          email: body.email,
+          created_at: new Date().toISOString(),
+          email_confirmed_at: new Date().toISOString(),
+        };
         users.push(found);
         await pool.query('insert into auth.users(id,email) values($1,$2)', [
           found.id,

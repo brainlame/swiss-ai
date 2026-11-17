@@ -20,7 +20,17 @@
       AI.
     </p>
     <div class="hero-actions">
-      <a class="button" href="/chatbot">Open Chatbot</a>
+      {#if !data.signedIn}
+        <a class="button" href="/signup">Sign up</a>
+      {:else}
+        <a class="button" href="/chatbot">Open Chatbot</a>
+        <button
+          type="button"
+          class="button secondary"
+          onclick={() => window.dispatchEvent(new Event('tutorial:replay'))}
+          >Replay tutorial</button
+        >
+      {/if}
       <a class="text-link" href="/issues">Browse issues</a>
     </div>
   </div>
