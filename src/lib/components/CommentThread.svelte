@@ -314,7 +314,7 @@
 <div class="reason-thread">
   <div class="discussion-heading">
     <h3>Comments <span>{discussion.comment_count}</span></h3>
-    <span class="anonymous-note">Anonymous discussion</span>
+    <!-- <span class="anonymous-note">Anonymous discussion</span> -->
   </div>
   {#if signedIn}
     <form class="comment-composer" onsubmit={postComment}>
@@ -331,8 +331,8 @@
         disabled={posting}
         aria-describedby={'comment-help-' + fieldId}></textarea>
       <div class="comment-composer-footer">
-        <span id={'comment-help-' + fieldId}>Your comment will be public.</span
-        ><button
+        <!-- <span id={'comment-help-' + fieldId}>Your comment will be public.</span> -->
+         <button
           type="submit"
           class="button small-button"
           disabled={!ready || posting || !draft.trim()}
@@ -353,9 +353,9 @@
     </div>
   {/if}
   {#if notice}<p class="discussion-status" role="status">{notice}</p>{/if}
-  {#if !comments.length}<p class="discussion-empty">
+  <!-- {#if !comments.length}<p class="discussion-empty">
       Be the first to comment.
-    </p>{/if}
+    </p>{/if} -->
   <div class="comment-list">
     {#each comments as comment (comment.id)}
       <div class="comment-thread">

@@ -8,4 +8,4 @@
   <h1>Submit an issue</h1>
   <p>Share what happened and what could improve.</p>
 </div>
-<div class="narrow"><CaseForm constitutions={data.constitutions} /></div>
+<div class="narrow"><CaseForm /></div>

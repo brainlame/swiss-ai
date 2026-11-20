@@ -22,7 +22,7 @@ test('chatbot: server authentication, latest-message rules, safe input and ephem
     page.getByRole('heading', { name: 'Chatbot', exact: true }),
   ).toBeVisible();
   await expect(page.locator('#chatbot-introduction')).toContainText(
-    'Some replies are intentionally flawed',
+    'Try asking the chatbot',
   );
   await expect(
     page.getByRole('button', { name: 'Send', exact: true }),
@@ -257,7 +257,6 @@ test('chatbot: full snapshot is read-only, screenshot-free and persists through 
   await page
     .getByLabel('Proposed change', { exact: false })
     .fill('Explain how an answer can be verified.');
-  await page.getByRole('combobox', { name: /^Principle/ }).selectOption('2');
   await page.getByRole('radio', { name: 'Good / wanted behavior' }).check();
   await page.screenshot({
     path: info.outputPath('conversation-case-form.png'),

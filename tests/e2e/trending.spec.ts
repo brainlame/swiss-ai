@@ -111,7 +111,7 @@ test('ten time-ranked issues per page, stable ties and a bounded public API', as
   expect(JSON.stringify(all)).not.toMatch(/owner_id|user_id|@fixtures/);
 });
 
-test('live graphics react to outside publishing, classification and deletion; circles filter the feed', async ({
+test('live graphics react to outside publishing, classification and deletion; bubbles reveal topic details', async ({
   page,
   request,
 }, info) => {
@@ -119,7 +119,7 @@ test('live graphics react to outside publishing, classification and deletion; ci
   await page.goto('/issues');
   await expect(page.locator('.live-status')).toHaveText('Live');
   await expect(page.locator('.donut-total strong')).toHaveText('26');
-  await expect(page.locator('.principle-bubble')).toHaveCount(11);
+  await expect(page.locator('.topic-bubble')).toHaveCount(1);
   await expect(page.locator('.behavior-legend')).toContainText('Unclassified');
   expect(
     (
@@ -138,8 +138,8 @@ test('live graphics react to outside publishing, classification and deletion; ci
   ).toBeDisabled();
   const stats = await (await request.get('/api/issues/overview')).json();
   await expect(
-    page.getByRole('link', {
-      name: `Principle #11: ${stats.constitutions[10].count} issues. Filter issues.`,
+    page.getByRole('button', {
+      name: 'Unclassified: 27 issues',
       exact: true,
     }),
   ).toBeVisible();
@@ -166,11 +166,11 @@ test('live graphics react to outside publishing, classification and deletion; ci
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  const circle = page.locator('.principle-bubble').nth(1);
+  const circle = page.locator('.topic-bubble').first();
   await circle.focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/constitution=2/);
-  await expect(page.locator('.case-card')).toHaveCount(3);
+  await expect(page.locator('.topic-detail')).toContainText('Unclassified');
+  await expect(page.locator('.topic-detail')).toContainText('27 issues');
   await expect(page.locator('.donut-total strong')).toHaveText('27'); // global overview
   await request.post('http://127.0.0.1:54331/__test/activity', {
     data: { action: 'delete' },
@@ -276,6 +276,21 @@ test('topic and text search apply before loading more ranked issues', async ({
   });
   expect(fixture.ok()).toBe(true);
   await page.reload();
+  await expect(page.locator('.topic-bubble')).toHaveCount(2);
+  const assigned = page.getByRole('button', {
+    name: 'Citation checks: 15 issues',
+    exact: true,
+  });
+  const unclassified = page.getByRole('button', {
+    name: 'Unclassified: 11 issues',
+    exact: true,
+  });
+  expect((await assigned.boundingBox())!.width).toBeGreaterThan(
+    (await unclassified.boundingBox())!.width,
+  );
+  await assigned.click();
+  await expect(page.locator('.topic-detail')).toContainText('Citation checks');
+  await expect(page.getByLabel('Principle', { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),
   ).toBeEnabled();
@@ -283,7 +298,6 @@ test('topic and text search apply before loading more ranked issues', async ({
   await page
     .getByLabel('Topic', { exact: true })
     .selectOption({ label: 'Citation checks' });
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page).toHaveURL(/topic=fixture-citations/);
   await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
@@ -299,13 +313,11 @@ test('sort dropdown preserves filters and resets pagination', async ({
   await page.goto('/issues');
   await page.getByLabel('Search issues').fill('Fixture citizen perspective');
   await page.getByLabel('Sort by').selectOption('discussed');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page).toHaveURL(/sort=discussed/);
   await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(20);
   await page.getByLabel('Sort by').selectOption('controversial');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(0);
   await expect(page.getByLabel('Search issues')).toHaveValue(
     'Fixture citizen perspective',
@@ -317,7 +329,6 @@ test('sort dropdown preserves filters and resets pagination', async ({
   await expect(page.getByLabel('Sort by')).toHaveValue('trending');
   await expect(page.locator('.case-card')).toHaveCount(10);
   await page.getByLabel('Sort by').selectOption('controversial');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(1);
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),

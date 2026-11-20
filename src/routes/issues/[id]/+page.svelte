@@ -23,11 +23,7 @@
   }
 </script>
 
-<svelte:head
-  ><title
-    >A citizen issue · Principle #{data.item.constitution_number} · AI Constitution</title
-  ></svelte:head
->
+<svelte:head><title>A citizen issue · AI Constitution</title></svelte:head>
 <div class="detail-layout">
   <div class="detail-main">
     <a class="back-link" href="/issues" data-sveltekit-preload-data="false">
@@ -36,8 +32,9 @@
     <div class="detail-top">
       {#if data.item.is_sample}<span class="sample-label">Sample issue</span
         >{/if}
-      <span class="pill">Principle #{data.item.constitution_number}</span><span
-        class="muted"
+      {#if data.item.constitution_number}<span class="pill"
+          >Principle #{data.item.constitution_number}</span
+        >{/if}<span class="muted"
         >Anonymous · <time datetime={data.item.created_at}
           >{date(data.item.created_at)}</time
         ></span
@@ -110,14 +107,14 @@
         >
       </div>{/if}
   </div>
-  <aside class="constitution-aside">
-    <span class="pill">Principle #{constitution?.number}</span>
-    <h2>The principle</h2>
-    <p>{constitution?.text}</p>
-    <span class="sample-label">Sample · pending replacement</span><a href="/"
-      >View all principles
-    </a>
-  </aside>
+  {#if constitution}<aside class="constitution-aside">
+      <span class="pill">Principle #{constitution?.number}</span>
+      <h2>The principle</h2>
+      <p>{constitution?.text}</p>
+      <span class="sample-label">Sample · pending replacement</span><a href="/"
+        >View all principles
+      </a>
+    </aside>{/if}
 </div>
 <dialog
   class="image-dialog"

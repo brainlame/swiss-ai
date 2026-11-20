@@ -1,16 +1,13 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { page } from '$app/state';
-  import type { Constitution } from '#lib/types.js';
+  import { scale, fade } from 'svelte/transition';
   import type { IssueOverview } from '#lib/issue-overview.js';
   let {
     initial,
-    constitutions,
     refreshKey = 0,
     onrevision,
   }: {
     initial: IssueOverview | null;
-    constitutions: Constitution[];
     refreshKey?: number;
     onrevision: (revision: string) => void;
   } = $props();
@@ -19,6 +16,7 @@
     live = $state(false),
     ready = $state(false),
     busy = $state(false);
+  let reducedMotion = $state(false);
   let active = false,
     controller: AbortController | undefined;
   let stop: (() => void) | undefined;
@@ -55,6 +53,7 @@
     }
   }
   onMount(() => {
+    reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     active = true;
     ready = true;
     // Load the browser-only transport after hydration; SSR uses the same aggregate RPC.
@@ -77,8 +76,12 @@
       controller?.abort();
     };
   });
+  let selectedTopic = $state<string | null>(null);
+  const selected = $derived(
+    overview?.topics?.find((t) => t.id === selectedTopic),
+  );
   const max = $derived(
-    Math.max(1, ...(overview?.constitutions.map((c) => c.count) ?? [])),
+    Math.max(1, ...(overview?.topics?.map((c) => c.count) ?? [])),
   );
   const segments = $derived(
     overview
@@ -93,15 +96,6 @@
         ]
       : [],
   );
-  function link(number: number) {
-    const params = new URLSearchParams(page.url.searchParams.toString());
-    for (const key of ['cursor', 'time', 'upvotes', 'revision', 'sort'])
-      params.delete(key);
-    if (params.get('constitution') === String(number))
-      params.delete('constitution');
-    else params.set('constitution', String(number));
-    return '/issues' + (params.size ? '?' + params : '');
-  }
 </script>
 
 <section class="issue-overview" aria-labelledby="overview-title">
@@ -130,42 +124,61 @@
       <figure class="principle-chart">
         <figcaption>
           <h3>Where ideas gather</h3>
-          <p>Issues by principle. Pick a circle to explore.</p>
+          <p>Issues by topic. Pick a bubble to explore.</p>
         </figcaption>
-        <div class="principle-bubbles" aria-label="Issues by principle">
-          {#each overview.constitutions as c (c.number)}
-            <a
-              class="principle-bubble"
-              href={link(c.number)}
-              class:chosen={page.url.searchParams.get('constitution') ===
-                String(c.number)}
-              style:--bubble-size={44 + 30 * Math.sqrt(c.count / max) + 'px'}
-              aria-label={'Principle #' +
-                c.number +
+        <div
+          class="principle-bubbles topic-bubbles"
+          aria-label="Issues by topic"
+        >
+          {#each overview.topics ?? [] as topic (topic.id)}
+            <button
+              type="button"
+              class="principle-bubble topic-bubble"
+              class:chosen={selectedTopic === topic.id}
+              aria-pressed={selectedTopic === topic.id}
+              aria-controls="selected-topic"
+              style:--bubble-size={Math.max(
+                52,
+                126 * Math.sqrt(topic.count / max),
+              ) + 'px'}
+              aria-label={topic.name +
                 ': ' +
-                c.count +
-                (c.count === 1 ? ' issue' : ' issues') +
-                '. Filter issues.'}
-              aria-current={page.url.searchParams.get('constitution') ===
-              String(c.number)
-                ? 'true'
-                : undefined}
-              title={'Principle #' +
-                c.number +
-                ': ' +
-                (constitutions.find((p) => p.number === c.number)?.text ?? '')}
+                topic.count +
+                (topic.count === 1 ? ' issue' : ' issues')}
+              title={topic.name}
+              in:scale={{ duration: reducedMotion ? 0 : 220, start: 0.85 }}
+              onclick={() =>
+                (selectedTopic = selectedTopic === topic.id ? null : topic.id)}
             >
-              <span>#{c.number}</span><strong
-                >{c.count.toLocaleString('en')}</strong
+              <span>{topic.name}</span><strong
+                >{topic.count.toLocaleString('en')}</strong
               >
-            </a>
+            </button>
+          {:else}
+            <p class="muted">Topics will appear as issues are shared.</p>
           {/each}
+        </div>
+        <div id="selected-topic" aria-live="polite" aria-atomic="true">
+          {#if selected}
+            {#key selected.id}
+              <div
+                class="topic-detail"
+                in:fade={{ duration: reducedMotion ? 0 : 160 }}
+              >
+                <strong>{selected.name}</strong>
+                <span
+                  >{selected.count}
+                  {selected.count === 1 ? 'issue' : 'issues'}</span
+                >
+              </div>
+            {/key}
+          {/if}
         </div>
       </figure>
       <figure class="behavior-chart">
         <figcaption>
           <h3>What stands out</h3>
-          <p>Behavior labels from issue authors.</p>
+          <!-- <p>Behavior labels from issue authors.</p> -->
         </figcaption>
         <div class="behavior-graphic">
           <div class="overview-donut">
@@ -214,11 +227,11 @@
         </div>
       </figure>
     </div>
-    <p class="overview-caption">
+    <!-- <p class="overview-caption">
       All published issues{overview.total === 0
         ? ' · Your first contribution starts the picture.'
         : ' · Bigger circles mean more issues.'}
-    </p>
+    </p> -->
   {:else}
     <div class="overview-unavailable">
       <p>The overview is unavailable. You can still browse issues below.</p>

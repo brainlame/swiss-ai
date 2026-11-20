@@ -19,7 +19,7 @@ const snapshotFields = `c.id, c.behavior, encode(sha256(convert_to(jsonb_build_a
   c.transcript, c.chat_prompt, c.chat_response
 )::text, 'UTF8')), 'hex') as fingerprint`;
 const snapshotSource = `from public.cases c
-  join public.constitutions p on p.number = c.constitution_number
+  left join public.constitutions p on p.number = c.constitution_number
   where c.status = 'published'
   order by c.id`;
 
@@ -41,7 +41,7 @@ export async function prepareReview(db: pg.Client) {
       chat_prompt: string | null;
       chat_response: string | null;
     }
-  >(`select ${snapshotFields}, c.description, c.improvement, p.text as principle,
+  >(`select ${snapshotFields}, c.description, c.improvement, coalesce(p.text, 'No principle referenced') as principle,
     c.transcript, c.chat_prompt, c.chat_response ${snapshotSource}`);
   return rows.map((row) => ({
     issueId: row.id,

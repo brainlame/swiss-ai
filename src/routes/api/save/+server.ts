@@ -59,7 +59,7 @@ export const POST = async ({ locals, request, url }) => {
   )
     error(400, 'Invalid issue data.');
   try {
-    validateText(description, improvement, constitution);
+    validateText(description, improvement, constitution ?? null);
     validateBehavior(behavior);
     if (transcript !== null) validateTranscript(transcript);
   } catch (e) {
@@ -76,7 +76,7 @@ export const POST = async ({ locals, request, url }) => {
   const { error: e } = await locals.supabase.rpc('save_case', {
     p_id: id,
     p_version: version,
-    p_constitution: constitution,
+    p_constitution: constitution ?? null,
     p_description: description,
     p_improvement: improvement,
     p_transcript: transcript,

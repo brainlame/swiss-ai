@@ -30,6 +30,14 @@ function setup(body: Record<string, unknown>, origin = 'https://app.example') {
   };
 }
 describe('case save boundaries', () => {
+  it('accepts an issue without a principle reference', async () => {
+    const { event, rpc } = setup({ constitution: null });
+    await POST(event);
+    expect(rpc).toHaveBeenCalledWith(
+      'save_case',
+      expect.objectContaining({ p_constitution: null }),
+    );
+  });
   it('atomically saves all messages and classification without Storage operations', async () => {
     const { event, rpc } = setup({});
     expect((await POST(event)).status).toBe(200);

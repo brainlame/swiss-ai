@@ -11,7 +11,7 @@ async function reachForm(page: Page) {
   const tour = tutorial(page);
   await expect(tour).toContainText('Step 1 of 6');
   await expect(tour.getByRole('progressbar')).toHaveAttribute('value', '1');
-  await expect(tour.getByRole('progressbar')).toHaveAttribute('max', '14');
+  await expect(tour.getByRole('progressbar')).toHaveAttribute('max', '13');
   await tour.getByRole('button', { name: 'Start tour' }).click();
   await expect(page).toHaveURL('/');
   await expect(page.locator('#principles-heading')).toHaveClass(
@@ -80,16 +80,18 @@ test('new account completes the tutorial through a real issue submission', async
   await expect(page.locator('#improvement')).toHaveClass(/tutorial-target/);
   await page.locator('#improvement').fill('Answer simple greetings directly.');
   await next.click();
-  await expect(page.locator('#constitution')).toHaveClass(/tutorial-target/);
-  await next.click();
+  await expect(page.locator('#constitution')).toHaveCount(0);
   const submit = page.getByRole('button', {
     name: 'Submit issue',
     exact: true,
   });
+  await page.locator('#description').fill('');
   await submit.click();
   await expect(tour).toContainText('Step 5 of 6');
   await expect(page).toHaveURL(/\/submit/);
-  await page.locator('#constitution').selectOption('1');
+  await page
+    .locator('#description')
+    .fill('The chatbot responded to my greeting.');
   await submit.click();
   await expect(page).toHaveURL(/\/issues\/[\da-f-]+$/);
   await expect(tour).toContainText('Step 6 of 6');

@@ -22,13 +22,16 @@ export function safeReturn(value: string | null): string {
 export function validateText(
   description: string,
   improvement: string,
-  constitution: number,
+  constitution: number | null,
 ) {
   if (!description.trim() || !improvement.trim())
     throw new Error('Description and proposed improvement are required.');
   if (description.length > 10000 || improvement.length > 10000)
     throw new Error('Keep each text field to 10,000 characters or fewer.');
-  if (!Number.isInteger(constitution) || constitution < 1 || constitution > 11)
+  if (
+    constitution !== null &&
+    (!Number.isInteger(constitution) || constitution < 1 || constitution > 11)
+  )
     throw new Error('Select one of the 11 principles.');
 }
 export function browseParams(url: URL) {

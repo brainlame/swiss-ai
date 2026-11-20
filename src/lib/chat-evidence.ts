@@ -8,7 +8,6 @@ export type IssueFormDraft = {
   id: string;
   description: string;
   improvement: string;
-  constitution: number;
   behavior: 'good' | 'bad' | '';
 };
 const freeze = (messages: Transcript): Transcript =>

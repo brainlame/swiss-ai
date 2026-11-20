@@ -16,7 +16,7 @@ model Constitution {
 }
 model Case {
  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
- constitutionNumber Int @map("constitution_number") @db.SmallInt
+ constitutionNumber Int? @map("constitution_number") @db.SmallInt
  description String
  improvement String
  transcript Json? @db.JsonB
@@ -34,7 +34,7 @@ model Case {
  sampleWantedVotes Int @default(0) @map("sample_wanted_votes")
  sampleUnwantedVotes Int @default(0) @map("sample_unwanted_votes")
  // SQL maintains upvotes from private ballots and adds partial descending rank indexes.
- constitution Constitution @relation(fields:[constitutionNumber], references:[number])
+ constitution Constitution? @relation(fields:[constitutionNumber], references:[number])
  screenshots CaseScreenshot[]
  owner CaseOwner?
  uploads Upload[]

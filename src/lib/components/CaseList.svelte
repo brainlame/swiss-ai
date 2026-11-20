@@ -7,8 +7,9 @@
     RankingCursor,
   } from '#lib/issue-overview.js';
   import ConversationArt from '#lib/components/ConversationArt.svelte';
-  import { onMount, untrack } from 'svelte';
-  import { page } from '$app/state';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page, navigating } from '$app/state';
   import type { CaseSummary, Constitution } from '#lib/types.js';
   import { date, behaviorLabel } from '#lib/types.js';
   let {
@@ -71,6 +72,28 @@
       (!data.mine && (!!selectedTopic || selectedSort !== 'trending')) ||
       (data.mine && page.url.searchParams.get('sort') === 'oldest'),
   );
+  let filterTimer: ReturnType<typeof setTimeout>;
+  onDestroy(() => clearTimeout(filterTimer));
+  function applyFilters(form: HTMLFormElement) {
+    clearTimeout(filterTimer);
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form)) {
+      if (typeof value === 'string' && value.trim())
+        params.set(key, value.trim());
+    }
+    const pathname = data.mine ? '/my-issues' : '/issues';
+    void goto(pathname + (params.size ? '?' + params : ''), {
+      reset: false,
+    });
+  }
+  function filterInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const form = event.currentTarget as HTMLFormElement;
+    clearTimeout(filterTimer);
+    if (input.type === 'search')
+      filterTimer = setTimeout(() => applyFilters(form), 300);
+    else applyFilters(form);
+  }
   async function more() {
     if (busy || !items.length || rankingChanged) return;
     busy = true;
@@ -171,7 +194,6 @@
   </p>{/if}
 {#if !data.mine}<IssueOverview
     initial={data.overview ?? null}
-    constitutions={data.constitutions}
     refreshKey={activity}
     onrevision={(value) => {
       if (!revision || BigInt(value) >= BigInt(revision))
@@ -180,6 +202,12 @@
   />{/if}
 <form
   class="filter-bar"
+  data-ready={ready}
+  oninput={filterInput}
+  onsubmit={(event) => {
+    event.preventDefault();
+    applyFilters(event.currentTarget);
+  }}
   method="GET"
   action={data.mine ? '/my-issues' : '/issues'}
 >
@@ -188,6 +216,7 @@
     <div class="search-input">
       <LineIcon name="search" size={19} /><input
         id="search"
+        disabled={!ready}
         type="search"
         name="q"
         maxlength="200"
@@ -199,28 +228,27 @@
   {#if !data.mine}
     <div>
       <label for="issue-sort">Sort by</label>
-      <select id="issue-sort" name="sort" value={selectedSort}>
+      <select
+        disabled={!ready}
+        id="issue-sort"
+        name="sort"
+        value={selectedSort}
+      >
         <option value="trending">Trending</option>
         <option value="discussed">Widely discussed</option>
         <option value="controversial">Controversial</option>
       </select>
     </div>
   {/if}
-  <div>
-    <label for="filter">Principle</label><select
-      id="filter"
-      name="constitution"
-      value={page.url.searchParams.get('constitution') ?? ''}
-      ><option value="">All principles</option
-      >{#each data.constitutions as c}<option value={String(c.number)}
-          >Principle #{c.number}</option
-        >{/each}</select
-    >
-  </div>
   {#if !data.mine}
     <div>
       <label for="topic-filter">Topic</label>
-      <select id="topic-filter" name="topic" value={selectedTopic}>
+      <select
+        disabled={!ready}
+        id="topic-filter"
+        name="topic"
+        value={selectedTopic}
+      >
         <option value="">All topics</option>
         {#each topics as topic (topic.id)}
           <option value={topic.id}>{topic.name}</option>
@@ -236,6 +264,7 @@
   {/if}
   {#if data.mine}<div>
       <label for="sort">Sort by</label><select
+        disabled={!ready}
         id="sort"
         name="sort"
         value={page.url.searchParams.get('sort') ?? 'newest'}
@@ -245,12 +274,16 @@
       >
     </div>
   {/if}
-  <button class="button" type="submit">Apply</button>{#if active}<a
-      class="reset-link"
-      href={data.mine ? '/my-issues' : '/issues'}>Reset filters</a
+  <noscript><button class="button" type="submit">Apply</button></noscript
+  >{#if active}<a class="reset-link" href={data.mine ? '/my-issues' : '/issues'}
+      >Reset filters</a
     >{/if}
 </form>
-<div class="results-heading" data-tour={data.mine ? undefined : 'issue-list'}>
+<div
+  aria-busy={!!navigating.to}
+  class="results-heading"
+  data-tour={data.mine ? undefined : 'issue-list'}
+>
   <span class="feed-label"
     ><LineIcon name={data.mine ? 'edit' : 'people'} size={19} />{data.mine
       ? 'Your contributions'
@@ -287,7 +320,9 @@
           <div class="case-card-top">
             {#if item.is_sample}<span class="sample-label">Sample issue</span
               >{/if}
-            <span class="pill">Principle #{item.constitution_number}</span><span
+            {#if item.constitution_number}<span class="pill"
+                >Principle #{item.constitution_number}</span
+              >{/if}<span
               class="behavior-label"
               class:good={item.behavior === 'good'}
               >{behaviorLabel(item.behavior)}</span

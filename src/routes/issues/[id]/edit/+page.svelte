@@ -10,8 +10,5 @@
   <p>Changes are public when saved.</p>
 </div>
 <div class="narrow">
-  {#key data.item.id + data.item.version}<CaseForm
-      constitutions={data.constitutions}
-      item={data.item}
-    />{/key}
+  {#key data.item.id + data.item.version}<CaseForm item={data.item} />{/key}
 </div>

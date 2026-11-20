@@ -17,7 +17,7 @@
       number: 2,
       title: 'Find the constitution',
       target: '#principles-heading',
-      text: 'The 11 principles on Home are sample statements about how AI should behave. They’re already open. Scroll below this heading to read them.',
+      text: 'The charter contains 11 principles about how AI should behave. Select a principle’s title or preview to expand its full text. Select it again to collapse.',
     },
     chatbot: {
       number: 3,
@@ -67,12 +67,6 @@
       target: '#improvement',
       text: 'Suggest a specific change and explain why it would help.',
     },
-    constitution: {
-      number: 5,
-      title: 'Principle',
-      target: '#constitution',
-      text: 'Select the principle your proposed change addresses. Its text appears below the menu.',
-    },
     submit: {
       number: 5,
       title: 'Submit issue',
@@ -99,8 +93,7 @@
     selection: 'continue',
     behavior: 'description',
     description: 'improvement',
-    improvement: 'constitution',
-    constitution: 'submit',
+    improvement: 'submit',
   };
   let step = $state<Step | null>(null);
   const current = $derived(step ? steps[step] : null);

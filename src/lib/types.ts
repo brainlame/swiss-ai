@@ -6,7 +6,7 @@ export type Screenshot = {
 };
 export type CaseRecord = {
   id: string;
-  constitution_number: number;
+  constitution_number: number | null;
   description: string;
   improvement: string;
   created_at: string;

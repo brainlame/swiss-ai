@@ -31,7 +31,7 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
       ready = true;
       await db.query(
         `insert into public.cases(id, constitution_number, description, improvement, status, behavior)
-      select id, case when n <= 24 then 2 else 3 end,
+      select id, case when n <= 24 then 2 else null end,
         case when n <= 22 then 'Citation supplied'
              when n <= 24 then 'Missing attribution'
              else 'Citation exposes a private address' end,

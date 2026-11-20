@@ -117,7 +117,6 @@ describe('continuous issue selections and Back to chat', () => {
       id: 'retry-id',
       description: 'Description',
       improvement: 'Proposal',
-      constitution: 4,
       behavior: 'good',
     });
     attachConversation(full, { start: 1, end: 2 });
@@ -126,7 +125,6 @@ describe('continuous issue selections and Back to chat', () => {
     expect(issueDraft()).toMatchObject({
       id: '',
       description: 'Description',
-      constitution: 4,
       behavior: 'good',
     });
     discardIssueFlow();

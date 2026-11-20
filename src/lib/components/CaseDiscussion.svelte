@@ -199,10 +199,10 @@
       >
     </div>
     <p class="vote-help">
-      {sample ? 'Totals include sample votes.' : 'Vote on the AI behavior.'}
+      <!-- {sample ? 'Totals include sample votes.' : 'Vote on the AI behavior.'}
       {discussion.my_vote
         ? 'Select again to undo.'
-        : 'Vote to see results and discussion.'}
+        : 'Vote to see results and discussion.'} -->
     </p>
     {#if voting}<p class="sr-only" role="status">Saving vote…</p>{/if}
     {#if discussion.my_vote}

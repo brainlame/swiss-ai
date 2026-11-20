@@ -76,8 +76,10 @@ async function seed() {
   try {
     await db.query('begin');
     await db.query(
-      'delete from public.cases where id in(select case_id from private.case_owners where user_id=any($1::uuid[]))',
-      [users.map((u) => u.id)],
+      `delete from public.cases where id in(
+        select o.case_id from private.case_owners o join auth.users u on u.id=o.user_id
+        where u.email like '%@fixtures.invalid'
+      )`,
     );
     await db.query(
       "delete from public.issue_topics where id='fixture-citations'",

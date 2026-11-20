@@ -14,6 +14,28 @@ test('homepage, persistent keyboard tabs, safe-area layout and remembered theme'
 }, info) => {
   await page.goto('/');
   await expect(page.locator('.constitution-card')).toHaveCount(11);
+  const principles = page.locator('.charter-principle');
+  for (let i = 0; i < 11; i++) {
+    const principle = principles.nth(i);
+    await expect(principle).toHaveJSProperty('open', false);
+    await expect(principle.locator('.charter-full-text')).not.toBeVisible();
+    await principle.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(principle.locator('.charter-full-text')).toBeVisible();
+    await expect(principle.locator('.charter-full-text')).toContainText(
+      '[' + (i + 1) + '.1]',
+    );
+  }
+  // Sections expand independently and can be collapsed with the keyboard.
+  await expect(principles.first()).toHaveJSProperty('open', true);
+  for (let i = 0; i < 11; i++) {
+    await principles.nth(i).locator('summary').focus();
+    await page.keyboard.press('Space');
+    await expect(principles.nth(i)).toHaveJSProperty('open', false);
+  }
+  await expect(principles.first().locator('summary')).toContainText(
+    'Writing clear, accurate, and useful responses.',
+  );
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(nav.getByRole('link')).toHaveCount(3);
   await expect(
@@ -95,22 +117,14 @@ test('public database browsing, search, filter, sort, load more and safe citizen
     .evaluateAll((els: any) => els.map((e: any) => e.href));
   expect(new Set(links).size).toBe(26);
   await page.getByLabel('Search issues').fill('uncertainty');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Reset filters' })).toBeVisible();
   await page
     .locator('.filter-bar')
     .getByRole('link', { name: 'Reset filters' })
     .click();
-  await page.getByLabel('Principle', { exact: true }).selectOption('2');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(page.locator('.case-card')).toHaveCount(3);
-  await expect(page.getByLabel('Principle', { exact: true })).toHaveValue('2');
-  expect(
-    (await page.locator('.case-card .pill').allTextContents()).every(
-      (t) => t === 'Principle #2',
-    ),
-  ).toBe(true);
+  await expect(page.getByLabel('Principle', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.case-card')).toHaveCount(10);
   const response = await request.get('/api/issues');
   const publicBody = await response.text();
   expect(publicBody).not.toMatch(
@@ -169,7 +183,6 @@ test('load-more failures retain results and allow retry; no-match filters reset'
   await page.getByRole('button', { name: 'Load more', exact: true }).click();
   await expect(page.locator('.case-card')).toHaveCount(20);
   await page.getByLabel('Search issues').fill('there is no such fixture');
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'No matching issues' }),
   ).toBeVisible();

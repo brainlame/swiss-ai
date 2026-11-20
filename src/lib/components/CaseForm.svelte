@@ -6,7 +6,7 @@
     validateTranscript,
     validateBehavior,
   } from '#lib/validation.js';
-  import type { Constitution, CaseRecord } from '#lib/types.js';
+  import type { CaseRecord } from '#lib/types.js';
   import ChatEvidence from '#lib/components/ChatEvidence.svelte';
   import {
     takeConversation,
@@ -16,15 +16,12 @@
     evidenceFor,
     type Transcript,
   } from '#lib/chat-evidence.js';
-  let {
-    constitutions,
-    item,
-  }: { constitutions: Constitution[]; item?: CaseRecord } = $props();
+  let { item }: { item?: CaseRecord } = $props();
   const initial = untrack(() => item);
   let transcript = $state<Transcript | null>(initial?.transcript ?? null);
   let description = $state(initial?.description ?? ''),
-    improvement = $state(initial?.improvement ?? ''),
-    constitution = $state(initial?.constitution_number ?? 0);
+    improvement = $state(initial?.improvement ?? '');
+  const constitution = initial?.constitution_number ?? null;
   let behavior = $state<'good' | 'bad' | ''>(
     initial ? (initial.behavior ?? '') : 'bad',
   );
@@ -33,9 +30,6 @@
     ready = $state(false),
     message = $state(''),
     done = $state('');
-  const selected = $derived(
-    constitutions.find((c) => c.number === constitution),
-  );
   const evidence = $derived(item ? evidenceFor(item) : transcript);
   onMount(() => {
     if (!item) {
@@ -48,7 +42,6 @@
       if (saved) {
         description = saved.description;
         improvement = saved.improvement;
-        constitution = saved.constitution;
         behavior = saved.behavior;
       }
       id = saved?.id || crypto.randomUUID();
@@ -61,7 +54,6 @@
         id,
         description,
         improvement,
-        constitution,
         behavior,
       });
   });
@@ -216,7 +208,7 @@
           ></label
         >
         <p class="helper" id="improvement-help">
-          Suggest a specific change to the principle.
+          Suggest how the AI’s behavior could improve.
         </p>
         <textarea
           id="improvement"
@@ -226,35 +218,9 @@
           rows="6"
           disabled={busy}
           aria-describedby="improvement-help"
-          placeholder="I propose changing this principle to… because…"
-        ></textarea>
+          placeholder="The AI should… because…"></textarea>
       </div>
     </section>
-    <section class="form-section" aria-label="Principle selection">
-      <div class="field-body">
-        <label id="constitution-label" for="constitution"
-          >Principle 
-          <span class="required" aria-hidden="true">Optional</span>
-        </label>
-        <p class="helper">Which sample principle would you change?</p>
-        <select
-          id="constitution"
-          bind:value={constitution}
-          required
-          disabled={busy}
-          ><option value={0} disabled>Select a principle</option
-          >{#each constitutions as c}<option value={c.number}
-              >Principle #{c.number}</option
-            >{/each}</select
-        >{#if selected}<div class="selected-constitution">
-            <span class="pill">Principle #{selected.number}</span><span
-              class="sample-label">Sample content</span
-            >
-            <p>{selected.text}</p>
-          </div>{/if}
-      </div>
-    </section>
-
     {#if message}<p class="notice error" role="alert">{message}</p>{/if}
     {#if busy}<p role="status">Saving your issue…</p>{/if}
     {#if done}<p class="notice success" role="status">

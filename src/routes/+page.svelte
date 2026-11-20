@@ -2,6 +2,43 @@
   import LineIcon from '#lib/components/LineIcon.svelte';
   import ConversationArt from '#lib/components/ConversationArt.svelte';
   let { data } = $props();
+
+  function animatePrinciple(node: HTMLDetailsElement) {
+    const summary = node.querySelector('summary')!;
+    let expanded = node.open;
+    let animation: Animation | null = null;
+    function toggle(event: MouseEvent) {
+      event.preventDefault();
+      expanded = !expanded;
+      const from = node.getBoundingClientRect().height;
+      animation?.cancel();
+      animation = null;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        node.open = expanded;
+        return;
+      }
+      node.open = true;
+      const border = node.offsetHeight - node.clientHeight;
+      const to = expanded
+        ? node.getBoundingClientRect().height
+        : summary.getBoundingClientRect().height + border;
+      animation = node.animate(
+        [{ height: from + 'px' }, { height: to + 'px' }],
+        { duration: 180, easing: 'ease-out' },
+      );
+      animation.onfinish = () => {
+        node.open = expanded;
+        animation = null;
+      };
+    }
+    summary.addEventListener('click', toggle);
+    return {
+      destroy() {
+        animation?.cancel();
+        summary.removeEventListener('click', toggle);
+      },
+    };
+  }
 </script>
 
 <svelte:head>
@@ -31,7 +68,7 @@
           >Replay tutorial</button
         >
       {/if}
-      <a class="text-link" href="/issues">Browse issues</a>
+      <!-- <a class="text-link" href="/issues">Browse issues</a> -->
     </div>
   </div>
   <div class="hero-art"><ConversationArt /></div>
@@ -46,44 +83,45 @@
       <span class="workflow-icon"><LineIcon name="chat" size={30} /></span>
       <div>
         <h3>Try a conversation</h3>
-        <p>Explore the simulated chatbot. Hints give you a place to start.</p>
+        <p>Explore the simulated chatbot.</p>
       </div>
     </li>
     <li>
       <span class="workflow-icon"><LineIcon name="select" size={30} /></span>
       <div>
         <h3>Pick a moment</h3>
-        <p>Good or bad, select a continuous part of the chat worth sharing.</p>
+        <p>Good or bad, select a portion of the chat worth sharing.</p>
       </div>
     </li>
     <li>
       <span class="workflow-icon"><LineIcon name="edit" size={30} /></span>
       <div>
         <h3>Suggest a change</h3>
-        <p>Explain what matters and how one principle could improve.</p>
+        <p>Explain what matters and how the charter could improve.</p>
       </div>
     </li>
   </ol>
   <p class="workflow-note">
-    <a href="/signin">Join with a six-digit code</a> sent to your email. Public contributions
-    are Anonymous.
+    <a href="/signin">Join with a six-digit code</a> sent to your email.
   </p>
 </section>
 
 <section class="principles" aria-labelledby="principles-heading">
   <div class="section-heading">
-    <h2 id="principles-heading">The 11 principles</h2>
-    <span class="pill sample">Sample content</span>
+    <h2 id="principles-heading">The Apertus AI Charter</h2>
   </div>
-  <p class="section-intro">
-    Sample statements pending replacement, not adopted policy.
-  </p>
-  <div class="constitution-grid">
-    {#each data.constitutions as c}
-      <article class="constitution-card">
-        <h3>Principle #{c.number}</h3>
-        <p>{c.text}</p>
-      </article>
+  <div class="constitution-grid charter-principles">
+    {#each data.constitutions as principle (principle.number)}
+      <details class="constitution-card charter-principle" use:animatePrinciple>
+        <summary>
+          <span class="charter-preview">
+            <strong>{principle.number}. {principle.title}</strong>
+            <span>{principle.preview}</span>
+          </span>
+          <span class="charter-toggle" aria-hidden="true"></span>
+        </summary>
+        <p class="charter-full-text">{principle.text}</p>
+      </details>
     {/each}
   </div>
 </section>
