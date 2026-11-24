@@ -50,6 +50,9 @@
         (discussion?.threads.wanted.comment_count ?? 0) +
         (discussion?.threads.unwanted.comment_count ?? 0),
   );
+  const canViewResults = $derived(
+    discussion?.can_view_results ?? !!discussion?.my_vote,
+  );
   const upPercent = $derived(
     totalVotes ? Math.round((discussion!.upvotes / totalVotes) * 100) : 0,
   );
@@ -122,7 +125,7 @@
 
 <section class="case-discussion" aria-label="Issue voting and discussion">
   {#if discussion}
-    {#if discussion.my_vote}
+    {#if canViewResults}
       <div
         class="vote-bar"
         role="img"
@@ -140,7 +143,7 @@
       <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
       <span>{totalComments} {totalComments === 1 ? 'comment' : 'comments'}</span
       >
-      {#if discussion.my_vote}<span class="upvote-count"
+      {#if canViewResults}<span class="upvote-count"
           >{discussion.upvotes} wanted · {upPercent}%</span
         ><span class="downvote-count"
           >{discussion.downvotes} unwanted · {totalVotes

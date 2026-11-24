@@ -15,5 +15,7 @@ export const variables = defineEnvVars({
     },
   },
   SUPABASE_SERVICE_ROLE_KEY: { schema: (v) => v ?? '' },
+  DATABASE_URL: { schema: (v) => v ?? '' },
+  OPENROUTER_API_KEY: { schema: (v) => v ?? '' },
   CLEANUP_SECRET: { schema: (v) => v ?? '' },
 });

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { scale, fade } from 'svelte/transition';
+  import { fly, fade } from 'svelte/transition';
   import type { IssueOverview } from '#lib/issue-overview.js';
   let {
     initial,
@@ -80,8 +80,22 @@
   const selected = $derived(
     overview?.topics?.find((t) => t.id === selectedTopic),
   );
-  const max = $derived(
-    Math.max(1, ...(overview?.topics?.map((c) => c.count) ?? [])),
+  let topicPage = $state(0);
+  const rankedTopics = $derived(
+    [...(overview?.topics ?? [])].sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.name.localeCompare(b.name, 'en') ||
+        a.id.localeCompare(b.id),
+    ),
+  );
+  const lastTopicPage = $derived(
+    Math.max(0, Math.ceil(rankedTopics.length / 5) - 1),
+  );
+  const currentTopicPage = $derived(Math.min(topicPage, lastTopicPage));
+  const topicOffset = $derived(currentTopicPage * 5);
+  const visibleTopics = $derived(
+    rankedTopics.slice(topicOffset, topicOffset + 5),
   );
   const segments = $derived(
     overview
@@ -121,43 +135,94 @@
   </div>
   {#if overview}
     <div class="overview-charts">
-      <figure class="principle-chart">
+      <figure class="topic-chart">
         <figcaption>
           <h3>Where ideas gather</h3>
-          <p>Issues by topic. Pick a bubble to explore.</p>
+          <p>Topics ranked by number of issues.</p>
         </figcaption>
-        <div
-          class="principle-bubbles topic-bubbles"
-          aria-label="Issues by topic"
+        <ol
+          class="topic-leaderboard"
+          id="topic-leaderboard"
+          start={topicOffset + 1}
+          aria-label="Topic leaderboard"
+          role="list"
         >
-          {#each overview.topics ?? [] as topic (topic.id)}
-            <button
-              type="button"
-              class="principle-bubble topic-bubble"
-              class:chosen={selectedTopic === topic.id}
-              aria-pressed={selectedTopic === topic.id}
-              aria-controls="selected-topic"
-              style:--bubble-size={Math.max(
-                52,
-                126 * Math.sqrt(topic.count / max),
-              ) + 'px'}
-              aria-label={topic.name +
-                ': ' +
-                topic.count +
-                (topic.count === 1 ? ' issue' : ' issues')}
-              title={topic.name}
-              in:scale={{ duration: reducedMotion ? 0 : 220, start: 0.85 }}
-              onclick={() =>
-                (selectedTopic = selectedTopic === topic.id ? null : topic.id)}
-            >
-              <span>{topic.name}</span><strong
-                >{topic.count.toLocaleString('en')}</strong
+          {#each visibleTopics as topic, index (topic.id)}
+            <li in:fly={{ y: 4, duration: reducedMotion ? 0 : 140 }}>
+              <button
+                type="button"
+                class="topic-row"
+                disabled={!ready}
+                class:chosen={selectedTopic === topic.id}
+                aria-pressed={selectedTopic === topic.id}
+                aria-controls="selected-topic"
+                aria-label={topic.name +
+                  ': ' +
+                  topic.count +
+                  (topic.count === 1 ? ' issue' : ' issues')}
+                onclick={() =>
+                  (selectedTopic =
+                    selectedTopic === topic.id ? null : topic.id)}
               >
-            </button>
+                <span class="topic-rank" aria-hidden="true"
+                  >{topicOffset + index + 1}</span
+                >
+                <span class="topic-name">{topic.name}</span>
+                <strong class="topic-count"
+                  >{topic.count.toLocaleString('en')}</strong
+                >
+              </button>
+            </li>
           {:else}
-            <p class="muted">Topics will appear as issues are shared.</p>
+            <li class="muted">Topics will appear as issues are shared.</li>
           {/each}
-        </div>
+        </ol>
+        {#if rankedTopics.length}
+          <div class="topic-pagination">
+            <span role="status" aria-live="polite" aria-atomic="true">
+              {topicOffset + 1}–{Math.min(topicOffset + 5, rankedTopics.length)} of
+              {rankedTopics.length} topics
+            </span>
+            <div class="topic-page-buttons">
+              <button
+                type="button"
+                aria-label="Previous five topics"
+                aria-controls="topic-leaderboard"
+                disabled={!ready || currentTopicPage === 0}
+                onclick={() => (topicPage = currentTopicPage - 1)}
+                ><svg
+                  aria-hidden="true"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><path d="m6 15 6-6 6 6" /></svg
+                ></button
+              >
+              <button
+                type="button"
+                aria-label="Next five topics"
+                aria-controls="topic-leaderboard"
+                disabled={!ready || currentTopicPage === lastTopicPage}
+                onclick={() => (topicPage = currentTopicPage + 1)}
+                ><svg
+                  aria-hidden="true"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg
+                ></button
+              >
+            </div>
+          </div>
+        {/if}
         <div id="selected-topic" aria-live="polite" aria-atomic="true">
           {#if selected}
             {#key selected.id}
@@ -175,10 +240,11 @@
           {/if}
         </div>
       </figure>
+      <!-- What stands out (temporarily hidden)
       <figure class="behavior-chart">
         <figcaption>
           <h3>What stands out</h3>
-          <!-- <p>Behavior labels from issue authors.</p> -->
+          <p>Behavior labels from issue authors.</p>
         </figcaption>
         <div class="behavior-graphic">
           <div class="overview-donut">
@@ -226,6 +292,7 @@
           </ul>
         </div>
       </figure>
+      -->
     </div>
     <!-- <p class="overview-caption">
       All published issues{overview.total === 0

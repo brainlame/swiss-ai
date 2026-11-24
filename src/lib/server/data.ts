@@ -1,5 +1,6 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isAdmin } from '#lib/server/admin.js';
 import { discussions } from '#lib/server/discussion.js';
 import { browseParams, rankedParams, UUID } from '#lib/validation.js';
 import type { CaseRecord, CaseSummary, Screenshot } from '#lib/types.js';
@@ -101,6 +102,7 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
       })),
     ),
     hasMore: rows.length > pageSize,
+    isAdmin: !mine && (await isAdmin(db)),
     revision,
     topics,
     hasUnclassified,
@@ -114,7 +116,12 @@ export async function browse(db: SupabaseClient, url: URL, mine = false) {
         : null,
   };
 }
-export async function getCase(db: SupabaseClient, id: string, owner = false) {
+export async function getCase(
+  db: SupabaseClient,
+  id: string,
+  owner = false,
+  allowDeleting = false,
+) {
   if (!UUID.test(id)) error(404, 'Issue not found.');
   if (owner) {
     const { data, error: e } = await db.rpc('owns_case', { p_id: id });
@@ -128,7 +135,12 @@ export async function getCase(db: SupabaseClient, id: string, owner = false) {
     .eq('id', id)
     .maybeSingle();
   if (e) error(503, 'Issue could not be loaded.');
-  if (!data || (!owner && data.status !== 'published'))
+  if (
+    !data ||
+    (!owner &&
+      data.status !== 'published' &&
+      !(allowDeleting && data.status === 'deleting'))
+  )
     error(404, 'Issue not found.');
   return (await withImages(db, [data]))[0] as CaseRecord;
 }

@@ -151,7 +151,7 @@ You can also run the seed in that project's SQL Editor. Stable issue IDs make re
 
 ## Trending and live graphics
 
-Above the public feed, a bubble chart shows all 11 principle totals and a ring chart shows the behavior labels supplied by issue authors. Counts include **all published issues**, independent of search/filter settings and loaded pages; drafts and pending deletions are excluded. Circles also act as keyboard-accessible principle filters. Empty and update-failure states retain clear labels rather than invented data.
+Above the public feed, a leaderboard shows topics by issue count and a ring chart shows the behavior labels supplied by issue authors. Counts include **all published issues**, independent of search/filter settings and loaded pages; drafts and pending deletions are excluded. Leaderboard rows reveal topic details, and the Topic selector filters issues. Empty and update-failure states retain clear labels rather than invented data.
 
 `issue_overview()` computes bounded aggregate output in Postgres, and `browse_trending_issues()` returns a safe projection with ten results plus one look-ahead. Neither returns owner IDs, emails or individual ballots. Private ballot triggers maintain `cases.upvotes` transactionally, including vote switches/removal and account-deletion cascades. Counter writes leave issue edit versions and update dates unchanged. SQL denies direct counter and revision writes to app roles.
 
@@ -175,13 +175,21 @@ This creates a private review file populated from the current database, includin
 
 Exclude names, contact information, identifying context, account or record identifiers, credentials, private links and confidential details from every text field. The command checks for common sensitive patterns, while the human reviewer decides whether a summary is safe to share and still represents the issue. Leave an issue unapproved if it cannot be summarized safely. The entire run then stops before making any model calls. Keep the approval file out of source control. [NVIDIA free endpoint data terms](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free)
 
+Check the account's current daily free-model allowance without making a generation request.
+
+```sh
+npm run topics -- quota
+```
+
+The command reports safe usage counts and exits nonzero with the next UTC reset time when the allowance is exhausted. Publishing checks this allowance before starting synthesis. Daily exhaustion requires waiting for the quota reset. Temporary HTTP 429 responses use bounded backoff of at least 15 and 30 seconds, honor Retry-After and rate-limit reset headers, and wait up to two minutes per retry. Longer retry hints are reported for a later run. A rejected batch is retried in place, and previous published topics stay available.
+
 Publish explicitly after review.
 
 ```sh
 npm run topics -- publish reviewed.topic-approval.json
 ```
 
-The command checks all approvals against one complete database snapshot. It calls the specified free Nemotron model with temporary references. The model invents its catalog from the approved evidence on every run. Larger corpora use batches and a reconciliation pass across provisional groups from that same run. Free endpoint failures, invalid responses and stale reviews exit nonzero. If issues or referenced principle text change during the job, prepare and review an updated file. Existing published topics stay visible throughout the job. One transaction replaces the entire catalog and advances the feed revision after the final snapshot check. A successful command prints the number of topics and issues plus the published revision.
+The command checks all approvals against one complete database snapshot. It calls the specified free Nemotron model with temporary references. The model invents its catalog from the approved evidence on every run, using broad everyday topic names of one to three words, such as Privacy, Safety or Using context. These examples do not define a fixed catalog. Both classification and reconciliation use this instruction, and validation rejects longer labels. Extra spaces are normalized and invalid classifications are retried up to three total attempts with safe corrective feedback. Failure messages identify the violated rule without printing the rejected names or issue content. Requests contain at most eight entries and 32 KB of approved content. Larger corpora use batches and a reconciliation pass across provisional groups from that same run. Each request has a 180-second deadline covering both headers and the response body. Connection interruptions and deadline expirations are reported separately. Free endpoint failures, invalid responses and stale reviews exit nonzero. If issues or referenced principle text change during the job, prepare and review an updated file. Existing published topics stay visible throughout the job. One transaction replaces the entire catalog and advances the feed revision after the final snapshot check. A successful command prints the number of topics and issues plus the published revision.
 
 All Issues starts at **All topics**. **Unclassified** includes published issues without an assignment, including issues added after synthesis. Topic selection combines with search, sort order and ranked pagination.
 
@@ -230,14 +238,69 @@ Apply the new migration, configure hosted Auth, and deploy the matching app toge
 
 Apply `supabase/migrations/20261110160000_issue_sorting.sql` to the target Supabase project before deploying this update. It adds a restricted, bounded `browse_ranked_issues` RPC and ranking invalidation triggers. No tables, Prisma models, or environment variables change.
 
-Before a viewer votes on an issue, the cards and detail page show only total vote and comment counts alongside the two voting buttons. Voting reveals the breakdown and discussion threads. Undoing a vote hides them again, including after reload. Signed-out viewers follow the existing sign-in flow. The SvelteKit discussion responses omit previews and breakdowns before a vote, and the comment-page endpoint requires an existing vote. This is a presentation rule for the website. Published comments and voting aggregates retain their existing public database read permissions.
+Before a viewer votes on an issue, the cards and detail page show only total vote and comment counts alongside the two voting buttons. Voting reveals the breakdown and discussion threads. Undoing a vote hides them again, including after reload. Signed-out viewers follow the existing sign-in flow. The SvelteKit discussion responses omit previews and breakdowns before a vote, and the comment-page endpoint requires an existing vote. Published comments retain their existing database read permissions. The admin moderation migration below additionally guards vote breakdowns at the database boundary; individual ballots remain private.
 
 Sort selection is saved in the URL alongside search and topic filters. Applying changed filters starts at page one. Refreshing uses a new ranking timestamp, allowing trending order to change as issues age. Issue synthesis remains explicitly triggered and is independent of sorting.
 
-## Topic bubbles and automatic filters
+## Topic leaderboard and automatic filters
 
 Apply `supabase/migrations/20261120160000_topic_overview_optional_principle.sql` before deploying this update. New issues have a nullable principle reference. Existing references are retained when editing. The form asks for behavior, description, and proposed change. The tutorial follows those inputs.
 
-“Where ideas gather” counts all published issues by their saved primary topics, including Unclassified for issues awaiting synthesis. Bubble areas scale with counts, subject to a minimum touch size. Selecting a bubble reveals its full topic name and issue count below the chart. Topic synthesis updates the catalog and triggers the existing overview refresh.
+“Where ideas gather” counts all published issues by their saved primary topics, including Unclassified for issues awaiting synthesis. Topics are ranked by issue count descending, with alphabetical tie breaking. The leaderboard displays five topics per page, with up and down arrow controls. Selecting a row reveals its topic name and issue count below the list. Topic synthesis updates the catalog and triggers the existing overview refresh.
 
 Search applies after a 300 ms typing pause. Topic and sort selections apply immediately, reset pagination, and preserve their state in the URL. The existing navigation loading bar indicates refreshes. Legacy principle URL filters remain supported for saved links, and the database still validates non-null principle references.
+
+## Admin access and moderation
+
+Apply `supabase/migrations/20261122160000_admin_moderation.sql` before deploying this version. The migration creates an empty, private admin membership table. Ordinary signup and email sign-in create no admin membership. Use an existing user's UUID from Supabase **Authentication → Users** to designate the first admin.
+
+Run these commands from a trusted backend machine with the existing server-only `DATABASE_URL` configured for an administrative connection to the target Supabase project. Apply the migration once using Supabase SQL Editor, or run:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261122160000_admin_moderation.sql
+```
+
+Then manage the selected existing accounts:
+
+```sh
+npm run admins -- list
+npm run admins -- grant --user-id USER_UUID
+npm run admins -- revoke --user-id USER_UUID
+```
+
+Email lookup is also supported.
+
+```sh
+npm run admins -- grant --email person@example.com
+npm run admins -- revoke --email person@example.com
+```
+
+Missing accounts and ambiguous email matches are rejected. A repeated grant preserves the original membership and grant time. Repeated revocation is a no-op. Listing admins displays their user IDs, emails and grant times only in the trusted backend terminal. Keep `DATABASE_URL` in the ignored environment file or backend secret store. The web app uses the existing Supabase SDK client and signed-in user's cookies.
+
+Admins see the existing wanted/unwanted aggregate vote breakdowns on All Issues and issue detail pages before voting. The ballot buttons still represent only the viewer's actual ballot. Normal readers see those breakdowns after voting. Current membership is read from the database on each privileged request, so revoking it takes effect without signing the user out. An already-rendered page may retain its controls until refreshed, while subsequent requests enforce the revocation.
+
+All Issues shows **Synthesize cases** above the filters only for admins. It runs the reviewed topic-synthesis workflow described below. Each admin issue card and detail page has a **Delete issue** control with a confirmation showing the description excerpt. Cancellation performs no deletion. Successful deletion removes the issue, transcript, ballots, comments and ownership mappings, uploads, screenshots and topic assignment. Shared topics, principles and accounts are retained. The list restarts pagination against the updated ranking and refreshes the overview.
+
+Deletion reuses the existing staged Storage cleanup. The first guarded RPC hides the issue, the user's SDK client deletes images under Storage policies, and a second guarded RPC checks authorization and image cleanup before transactionally removing the issue and dependent rows. An image-cleanup failure leaves a hidden issue available to admins at its detail URL for retry. The original owner retains their existing deletion and edit permissions. If admin access is revoked during cleanup, a currently authorized admin or the owner can finish the retry.
+
+Counter columns on `public.cases` are no longer directly selectable by application roles. Use explicit safe column projections for issue content and `case_discussions` for guarded vote aggregates. The current `browse_ranked_issues` feed supports all public pagination. The old `browse_trending_issues` vote-threshold cursor is admin-only to prevent threshold probes of hidden counts. Its initial page and the date-based `browse_cases` RPC return masked counts to readers who have not voted. The existing `/api/cases` aliases use the current feed. No unrestricted privileged client or membership-management endpoint is added to the website.
+
+## Run topic synthesis from All Issues
+
+The admin **Synthesize cases** button now runs the same pipeline as `npm run topics -- publish refreshed.topic-approval.json`. It opens a dialog where you select the same reviewed JSON approval file, then confirm **Synthesize cases**. Cancelling the dialog makes no synthesis request. New or edited issues require a freshly prepared/reviewed file; the app never automatically approves raw citizen text.
+
+Keep the existing preparation/review process:
+
+```sh
+npm run topics -- prepare refreshed.topic-approval.json
+# Review and sanitize every entry locally; set approved:true only after review.
+# You may then select this file in the website instead of running publish locally.
+```
+
+Configure `DATABASE_URL` and `OPENROUTER_API_KEY` as private server environment variables on the app host (including the relevant Vercel Production/Preview environment), then redeploy. `DATABASE_URL` must use an administrative PostgreSQL/session-pooler connection to the same project as `PUBLIC_SUPABASE_URL`; a transaction pooler cannot guarantee the session advisory lock. The ignored local `.env` is used locally and is not deployed by Git. No additional SQL migration or Prisma change is needed beyond the existing topic and admin migrations. The approval file remains on your machine until explicitly selected; no filesystem path or approval content is persisted by the website.
+
+The browser sends only the selected review manifest to a fixed, admin-only endpoint. The shared job reads the full current database snapshot, verifies every approval/fingerprint, checks quota, uses the same free NVIDIA model and prompts, batches and reconciles groups, and atomically replaces the catalog and all assignments. The server retains credentials and database IDs; model payloads use temporary references and reviewed sanitized text. The website and CLI share the same advisory lock, preventing overlapping classification/publication. Invalid/stale reviews, provider failures and invalid model output preserve the last successful topics. Admin access is checked on entry and again before publication, so revocation during classification prevents publishing.
+
+The dialog shows pending/failure/success states and prevents repeated clicks. Successful publication refreshes the saved topics, overview and issue list while preserving the active filters and resetting pagination. It makes no automatic OpenRouter calls on page loads, searches or issue submissions. There is no background queue or persisted job status in this version: keep the page open. After a lost connection, refresh to inspect topics before retrying; the server may still have completed the request.
+
+The endpoint requests a 300-second Vercel duration (with Fluid compute). Free-model latency, retries and large corpora can exceed the host's request limit; run the unchanged CLI from a long-lived trusted backend for those runs, or configure an allowed longer duration on an eligible hosting plan. A terminated run cannot publish a partial catalog. See [Vercel duration limits](https://vercel.com/docs/functions/configuring-functions/duration). No paid-model fallback is used.

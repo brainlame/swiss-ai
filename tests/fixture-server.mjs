@@ -21,6 +21,10 @@ const users = [
     id: '22222222-2222-4222-8222-222222222222',
     email: 'other@fixtures.invalid',
   },
+  {
+    id: '33333333-3333-4333-8333-333333333333',
+    email: 'moderator@fixtures.invalid',
+  },
 ].map((u) => ({
   ...u,
   aud: 'authenticated',
@@ -30,6 +34,7 @@ const users = [
   user_metadata: {},
 }));
 const files = new Map();
+let failStorageDelete = false;
 const emailCodes = new Map();
 // Isolated OAuth transport: verifies real PKCE challenges without contacting Google.
 const oauthCodes = new Map();
@@ -75,6 +80,7 @@ async function seed() {
   const db = await pool.connect();
   try {
     await db.query('begin');
+    await db.query('delete from private.admin_members');
     await db.query(
       `delete from public.cases where id in(
         select o.case_id from private.case_owners o join auth.users u on u.id=o.user_id
@@ -91,6 +97,7 @@ async function seed() {
         [u.id, u.email],
       );
     files.clear();
+    failStorageDelete = false;
     oauthCodes.clear();
     emailCodes.clear();
     for (let i = 0; i < 26; i++) {
@@ -201,6 +208,29 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       send(500, { message: e.message });
     }
+    return;
+  }
+  if (path === '/__test/storage-failure' && req.method === 'POST') {
+    failStorageDelete = body.fail === true;
+    send(200, { ok: true });
+    return;
+  }
+  if (path === '/__test/admin' && req.method === 'POST') {
+    const account = users.find((u) => u.email === body.email);
+    if (!account) {
+      send(400, { message: 'Missing test account' });
+      return;
+    }
+    if (body.grant === true)
+      await pool.query(
+        'insert into private.admin_members(user_id) values($1) on conflict do nothing',
+        [account.id],
+      );
+    else
+      await pool.query('delete from private.admin_members where user_id=$1', [
+        account.id,
+      ]);
+    send(200, { ok: true });
     return;
   }
   if (path === '/__test/activity' && req.method === 'POST') {
@@ -369,6 +399,7 @@ const server = http.createServer(async (req, res) => {
     if (path.startsWith('/rest/v1/rpc/')) {
       const name = path.split('/').pop();
       const allowed = [
+        'is_admin',
         'case_discussions',
         'discussion_comments',
         'vote_case',
@@ -507,6 +538,8 @@ const server = http.createServer(async (req, res) => {
       path === '/storage/v1/object/screenshots' &&
       req.method === 'DELETE'
     ) {
+      if (failStorageDelete)
+        throw new Error('Synthetic storage cleanup failure');
       data = [];
       for (const p of body.prefixes ?? []) {
         const { rows } = await db.query(

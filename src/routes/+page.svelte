@@ -126,4 +126,3 @@
   </div>
 </section>
 
-<p class="project-note">Formal review and model training come later.</p>

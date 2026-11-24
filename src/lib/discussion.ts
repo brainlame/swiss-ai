@@ -18,6 +18,7 @@ export type Discussion = {
   upvotes: number;
   downvotes: number;
   my_vote: Vote;
+  can_view_results?: boolean;
   total_votes?: number;
   total_comments?: number;
   threads: Record<'wanted' | 'unwanted', ThreadSummary>;

@@ -172,7 +172,10 @@ describe.skipIf(!enabled)(
       ).toHaveLength(0);
       await role('anon');
       const row = (
-        await db.query('select * from public.cases where id=$1', [id])
+        await db.query(
+          'select id,constitution_number,description,improvement,transcript,behavior,status,version from public.cases where id=$1',
+          [id],
+        )
       ).rows[0];
       expect(row).toMatchObject({
         transcript,
@@ -332,7 +335,12 @@ describe.skipIf(!enabled)(
       await db.query('select public.begin_delete($1)', [id]);
       await role('anon');
       expect(
-        (await db.query('select * from public.cases where id=$1', [id])).rows,
+        (
+          await db.query(
+            'select id,constitution_number,description,improvement,transcript,behavior,status,version from public.cases where id=$1',
+            [id],
+          )
+        ).rows,
       ).toEqual([]);
       await role('authenticated', owner);
       await db.query('select public.finish_delete($1)', [id]);

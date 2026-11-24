@@ -102,9 +102,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       await role('authenticated', owner);
       await db.query('select public.vote_case($1,0::smallint)', [caseId]);
       expect(await summary()).toMatchObject({
-        upvotes: 1,
+        upvotes: 0,
         downvotes: 0,
         my_vote: 0,
+        total_votes: 1,
+        can_view_results: false,
       });
       await denied('select public.vote_case($1,2::smallint)', [caseId]);
       await denied('select public.vote_case($1,null::smallint)', [caseId]);

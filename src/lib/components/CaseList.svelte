@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SynthesizeTopics from '#lib/components/SynthesizeTopics.svelte';
+  import DeleteIssue from '#lib/components/DeleteIssue.svelte';
   import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
   import LineIcon from '#lib/components/LineIcon.svelte';
   import IssueOverview from '#lib/components/IssueOverview.svelte';
@@ -20,6 +22,7 @@
       hasMore: boolean;
       query: string;
       mine: boolean;
+      isAdmin?: boolean;
       constitutions: Constitution[];
       overview?: Overview | null;
       revision?: string | null;
@@ -32,6 +35,7 @@
     hasMore = $state(untrack(() => data.hasMore)),
     busy = $state(false),
     message = $state('');
+  let deletionNotice = $state('');
   let revision = $state(untrack(() => data.revision ?? null));
   let latestRevision = $state<string | null>(null),
     forceStale = $state(false),
@@ -200,6 +204,21 @@
         latestRevision = value;
     }}
   />{/if}
+{#if !data.mine}
+  <div class="admin-issue-controls">
+    <a class="button secondary" href="/my-issues">My Issues</a>
+    {#if data.isAdmin}<SynthesizeTopics
+        onPublished={async () => {
+          activity++;
+          await goto(page.url.href, {
+            refreshAll: true,
+            replace: true,
+            reset: false,
+          });
+        }}
+      />{/if}
+  </div>
+{/if}
 <form
   class="filter-bar"
   data-ready={ready}
@@ -279,6 +298,9 @@
       >Reset filters</a
     >{/if}
 </form>
+{#if deletionNotice}<p class="notice success" role="status">
+    {deletionNotice}
+  </p>{/if}
 <div
   aria-busy={!!navigating.to}
   class="results-heading"
@@ -366,6 +388,20 @@
               onvote={() => activity++}
             />{/if}
           <div class="case-card-footer">
+            {#if !data.mine && data.isAdmin}
+              <DeleteIssue
+                id={item.id}
+                description={item.description}
+                disabled={busy}
+                onDeleted={async () => {
+                  items = items.filter((row) => row.id !== item.id);
+                  deletionNotice = 'Issue deleted.';
+                  forceStale = true;
+                  activity++;
+                  await refreshRanking();
+                }}
+              />
+            {/if}
             {#if data.mine}<a
                 class="manage-link"
                 href={'/issues/' + item.id + '/edit'}

@@ -2374,7 +2374,7 @@ body {
 }
 .overview-charts {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 .overview-charts figure {
@@ -2393,57 +2393,83 @@ body {
   color: var(--muted);
   font-size: 13px;
 }
-.principle-chart {
+.topic-chart {
   background: var(--hero-bg);
 }
-.principle-bubbles {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  align-content: center;
-  gap: 10px;
-  min-height: 218px;
-  padding: 24px 0 0;
+.topic-leaderboard {
+  list-style: none;
+  margin: 20px 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
 }
-.principle-bubble {
-  width: var(--bubble-size);
-  height: var(--bubble-size);
-  min-width: 44px;
-  min-height: 44px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
+.topic-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--accent);
+  width: 100%;
+  min-height: 52px;
+  padding: 12px;
   border: 1px solid var(--hero-grid);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
   transition:
-    width 0.3s,
-    height 0.3s,
-    background-color 0.2s;
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
-.principle-bubble:nth-child(3n + 2) {
+.topic-row:hover,
+.topic-row.chosen {
   background: var(--accent-soft);
+  border-color: var(--accent);
 }
-.principle-bubble span {
-  font-size: 10px;
-  line-height: 1.4;
-}
-.principle-bubble strong {
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.2;
+.topic-rank {
+  color: var(--muted);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.principle-bubble:hover,
-.principle-bubble.chosen {
-  background: var(--button-bg);
-  color: white;
-  border-color: var(--button-bg);
-  text-decoration: none;
+.topic-name {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.topic-count {
+  color: var(--accent);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.topic-pagination,
+.topic-page-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topic-pagination {
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+}
+.topic-page-buttons button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--hero-grid);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--accent);
+}
+.topic-page-buttons button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topic-row {
+    transition: none;
+  }
 }
 .behavior-graphic {
   display: flex;
@@ -2572,9 +2598,6 @@ body {
   .overview-charts figure {
     padding: 20px;
   }
-  .principle-bubbles {
-    min-height: 180px;
-  }
   .behavior-graphic {
     gap: 18px;
     min-height: 160px;
@@ -2590,11 +2613,6 @@ body {
   .ranking-refresh {
     flex-direction: column;
     align-items: flex-start;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .principle-bubble {
-    transition: none;
   }
 }
 
@@ -2629,27 +2647,6 @@ body {
   }
 }
 
-.topic-bubble {
-  padding: 5px;
-  transition:
-    width 0.3s,
-    height 0.3s,
-    background-color 0.2s,
-    transform 0.2s;
-}
-.topic-bubble span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 3px;
-}
-.topic-bubble:hover {
-  transform: translateY(-3px);
-}
-.topic-bubble:active {
-  transform: scale(0.96);
-}
 .topic-detail {
   display: flex;
   flex-wrap: wrap;
@@ -2664,16 +2661,6 @@ body {
 .topic-detail span {
   color: var(--muted);
 }
-@media (prefers-reduced-motion: reduce) {
-  .topic-bubble {
-    transition: none;
-  }
-  .topic-bubble:hover,
-  .topic-bubble:active {
-    transform: none;
-  }
-}
-
 .detail-layout:has(> .detail-main:only-child) {
   grid-template-columns: minmax(0, 1fr);
   max-width: 820px;
@@ -2757,4 +2744,12 @@ body {
   .charter-principle summary {
     transition: none;
   }
+}
+
+.admin-issue-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  margin: 0 0 16px;
 }

@@ -160,3 +160,11 @@ model IssueTopicAssignment {
  @@map("issue_topic_assignments")
  @@schema("public")
 }
+
+model AdminMember {
+ userId String @id @map("user_id") @db.Uuid
+ grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz
+ // user_id references auth.users ON DELETE CASCADE. No application-role grants.
+ @@map("admin_members")
+ @@schema("private")
+}

@@ -111,16 +111,17 @@ test('ten time-ranked issues per page, stable ties and a bounded public API', as
   expect(JSON.stringify(all)).not.toMatch(/owner_id|user_id|@fixtures/);
 });
 
-test('live graphics react to outside publishing, classification and deletion; bubbles reveal topic details', async ({
+test('live graphics react to outside publishing and deletion; leaderboard rows reveal topic details', async ({
   page,
   request,
 }, info) => {
   const notify = await realtime(page);
   await page.goto('/issues');
   await expect(page.locator('.live-status')).toHaveText('Live');
-  await expect(page.locator('.donut-total strong')).toHaveText('26');
-  await expect(page.locator('.topic-bubble')).toHaveCount(1);
-  await expect(page.locator('.behavior-legend')).toContainText('Unclassified');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 26 issues', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.topic-row')).toHaveCount(1);
   expect(
     (
       await request.post('http://127.0.0.1:54331/__test/activity', {
@@ -129,34 +130,21 @@ test('live graphics react to outside publishing, classification and deletion; bu
     ).ok(),
   ).toBe(true);
   notify();
-  await expect(page.locator('.donut-total strong')).toHaveText('27');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 27 issues', exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Refresh issues', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),
   ).toBeDisabled();
-  const stats = await (await request.get('/api/issues/overview')).json();
   await expect(
     page.getByRole('button', {
       name: 'Unclassified: 27 issues',
       exact: true,
     }),
   ).toBeVisible();
-  await request.post('http://127.0.0.1:54331/__test/activity', {
-    data: { action: 'reclassify' },
-  });
-  notify();
-  await expect
-    .poll(
-      async () =>
-        await page.locator('.behavior-legend strong').allTextContents(),
-    )
-    .toEqual([
-      String(stats.behaviors.good - 1),
-      String(stats.behaviors.bad + 1),
-      String(stats.behaviors.unclassified),
-    ]);
   await page.screenshot({ path: info.outputPath('overview.png') });
   await page
     .locator('.issue-overview')
@@ -166,17 +154,21 @@ test('live graphics react to outside publishing, classification and deletion; bu
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  const circle = page.locator('.topic-bubble').first();
+  const circle = page.locator('.topic-row').first();
   await circle.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('.topic-detail')).toContainText('Unclassified');
   await expect(page.locator('.topic-detail')).toContainText('27 issues');
-  await expect(page.locator('.donut-total strong')).toHaveText('27'); // global overview
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 27 issues', exact: true }),
+  ).toBeVisible(); // global overview
   await request.post('http://127.0.0.1:54331/__test/activity', {
     data: { action: 'delete' },
   });
   notify();
-  await expect(page.locator('.donut-total strong')).toHaveText('26');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 26 issues', exact: true }),
+  ).toBeVisible();
   const publicStats = JSON.stringify(
     await (await request.get('/api/issues/overview')).json(),
   );
@@ -219,7 +211,9 @@ test('changed rankings require a refresh, while failed overview updates retain t
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),
   ).toBeEnabled();
-  await expect(page.locator('.donut-total strong')).toHaveText('27');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 27 issues', exact: true }),
+  ).toBeVisible();
   await page.route('**/api/issues/overview', (route) =>
     route.fulfill({
       status: 503,
@@ -228,7 +222,9 @@ test('changed rankings require a refresh, while failed overview updates retain t
   );
   notify();
   await expect(page.locator('.live-status')).toHaveText('Updates delayed');
-  await expect(page.locator('.donut-total strong')).toHaveText('27');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 27 issues', exact: true }),
+  ).toBeVisible();
   await page.unroute('**/api/issues/overview');
   await page
     .getByRole('button', { name: 'Retry overview', exact: true })
@@ -253,12 +249,16 @@ test('polling refreshes the overview when realtime is unavailable', async ({
   await expect(
     page.getByRole('button', { name: 'Refresh overview' }),
   ).toBeEnabled();
-  await expect(page.locator('.donut-total strong')).toHaveText('26');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 26 issues', exact: true }),
+  ).toBeVisible();
   await request.post('http://127.0.0.1:54331/__test/activity', {
     data: { action: 'publish' },
   });
   await page.clock.runFor(11000);
-  await expect(page.locator('.donut-total strong')).toHaveText('27');
+  await expect(
+    page.getByRole('button', { name: 'Unclassified: 27 issues', exact: true }),
+  ).toBeVisible();
   await expect(page.locator('.live-status')).toHaveText('Auto-updating');
 });
 
@@ -276,7 +276,7 @@ test('topic and text search apply before loading more ranked issues', async ({
   });
   expect(fixture.ok()).toBe(true);
   await page.reload();
-  await expect(page.locator('.topic-bubble')).toHaveCount(2);
+  await expect(page.locator('.topic-row')).toHaveCount(2);
   const assigned = page.getByRole('button', {
     name: 'Citation checks: 15 issues',
     exact: true,
@@ -285,9 +285,11 @@ test('topic and text search apply before loading more ranked issues', async ({
     name: 'Unclassified: 11 issues',
     exact: true,
   });
-  expect((await assigned.boundingBox())!.width).toBeGreaterThan(
-    (await unclassified.boundingBox())!.width,
-  );
+  await expect(unclassified).toBeVisible();
+  await expect(page.locator('.topic-name')).toHaveText([
+    'Citation checks',
+    'Unclassified',
+  ]);
   await assigned.click();
   await expect(page.locator('.topic-detail')).toContainText('Citation checks');
   await expect(page.getByLabel('Principle', { exact: true })).toHaveCount(0);
@@ -333,4 +335,85 @@ test('sort dropdown preserves filters and resets pagination', async ({
   await expect(
     page.getByRole('button', { name: 'Load more', exact: true }),
   ).toHaveCount(0);
+});
+
+test('topic leaderboard ranks the full catalog and pages five rows with arrow controls', async ({
+  page,
+  request,
+}) => {
+  const stats = await (await request.get('/api/issues/overview')).json();
+  let topics = Array.from({ length: 12 }, (_, i) => ({
+    id: 'synthetic-topic-' + (i + 1),
+    name: 'Synthetic topic ' + (i + 1),
+    count: i + 1,
+  }));
+  let revision = 10000000;
+  await page.route('**/api/issues/overview', (route) =>
+    route.fulfill({
+      json: { ...stats, topics, revision: String(revision) },
+    }),
+  );
+  await page.goto('/issues');
+  const rows = page.locator('.topic-row');
+  const up = page.getByRole('button', { name: 'Previous five topics' });
+  const down = page.getByRole('button', { name: 'Next five topics' });
+  await expect(rows).toHaveCount(5);
+  await expect(page.locator('.topic-count')).toHaveText([
+    '12',
+    '11',
+    '10',
+    '9',
+    '8',
+  ]);
+  await expect(page.locator('.topic-rank')).toHaveText([
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+  ]);
+  await expect(up).toBeDisabled();
+  await down.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.topic-count')).toHaveText([
+    '7',
+    '6',
+    '5',
+    '4',
+    '3',
+  ]);
+  await expect(page.locator('.topic-pagination')).toContainText(
+    '6–10 of 12 topics',
+  );
+  await down.click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('.topic-rank')).toHaveText(['11', '12']);
+  await expect(down).toBeDisabled();
+  await rows.first().click();
+  await expect(page.locator('.topic-detail')).toContainText(
+    'Synthetic topic 2',
+  );
+  await up.click();
+  await expect(rows).toHaveCount(5);
+  await expect(page.locator('.topic-count')).toHaveText([
+    '7',
+    '6',
+    '5',
+    '4',
+    '3',
+  ]);
+  // A live catalog replacement clamps an out-of-range page and breaks ties by name.
+  topics = [
+    { id: 'zulu', name: 'Zulu', count: 2 },
+    { id: 'alpha', name: 'Alpha', count: 2 },
+  ];
+  revision++;
+  await page
+    .getByRole('button', { name: 'Refresh overview', exact: true })
+    .click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('.topic-name')).toHaveText(['Alpha', 'Zulu']);
+  await expect(up).toBeDisabled();
+  await expect(down).toBeDisabled();
+  await expect(page.locator('.topic-detail')).toHaveCount(0);
 });

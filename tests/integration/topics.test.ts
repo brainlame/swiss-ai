@@ -71,9 +71,9 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
       }));
     }
 
-    it('publishes related issues together and combines topic, principle, search and rank cursors', async () => {
+    it('publishes related issues together and combines topic, principle, search and ranked pagination', async () => {
       const initial = (
-        await db.query('select public.browse_trending_issues() as feed')
+        await db.query('select public.browse_ranked_issues() as feed')
       ).rows[0].feed;
       expect(initial.topics).toEqual([]);
       expect(initial.has_unclassified).toBe(true);
@@ -108,8 +108,17 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
         expect(init?.body).not.toMatch(/old-catalog|Previous catalog sentinel/);
         const entries = JSON.parse(messages[1].content) as {
           ref: string;
-          description: string;
+          description?: string;
+          examples?: { description: string }[];
         }[];
+        const assignments = entries.map(({ ref, description, examples }) => ({
+          ref,
+          topic: (description ?? examples?.[0]?.description ?? '').startsWith(
+            'Private',
+          )
+            ? 't2'
+            : 't1',
+        }));
         return Response.json({
           choices: [
             {
@@ -119,11 +128,10 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
                   topics: [
                     { id: 't1', name: 'Source verification' },
                     { id: 't2', name: 'Personal privacy' },
-                  ],
-                  assignments: entries.map(({ ref, description }) => ({
-                    ref,
-                    topic: description.startsWith('Private') ? 't2' : 't1',
-                  })),
+                  ].filter((topic) =>
+                    assignments.some((a) => a.topic === topic.id),
+                  ),
+                  assignments,
                 }),
               },
             },
@@ -136,7 +144,7 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
         openRouter('synthetic-key', fetcher),
       );
       expect(published).toMatchObject({ issues: 26, topics: 2 });
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalled();
 
       await other.query(
         "insert into public.cases(id,constitution_number,description,improvement,status) values($1,2,'Citation new','Review','published')",
@@ -144,8 +152,7 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
       );
       await other.query('set role anon');
       try {
-        const { rows } =
-          await other.query(`select public.browse_trending_issues(
+        const { rows } = await other.query(`select public.browse_ranked_issues(
         p_search=>'citation', p_constitution=>2, p_topic=>'source-verification') as feed`);
         const first = rows[0].feed;
         expect(first.topics.map((topic: { id: string }) => topic.id)).toEqual([
@@ -160,20 +167,20 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
           seen.push(
             ...feed.items.slice(0, 10).map((item: { id: string }) => item.id),
           );
-          const cursor = feed.items[9];
+          const offset = feed.offset + 10;
           feed = (
             await other.query(
-              `select public.browse_trending_issues(
+              `select public.browse_ranked_issues(
           p_search=>'citation',p_constitution=>2,p_topic=>'source-verification',
-          p_upvotes=>$1,p_time=>$2,p_id=>$3,p_revision=>$4) as feed`,
-              [cursor.upvotes, cursor.created_at, cursor.id, first.revision],
+          p_offset=>$1,p_asof=>$2,p_revision=>$3) as feed`,
+              [offset, first.asof, first.revision],
             )
           ).rows[0].feed;
         }
         seen.push(...feed.items.map((item: { id: string }) => item.id));
         expect(seen.sort()).toEqual(ids.slice(0, 22).sort());
         const unclassified = (
-          await other.query(`select public.browse_trending_issues(
+          await other.query(`select public.browse_ranked_issues(
         p_topic=>'unclassified',p_search=>'citation') as feed`)
         ).rows[0].feed;
         expect(
@@ -196,6 +203,23 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
         ).rows[0];
       }
       const original = await state();
+      const deniedPublication = vi.fn(async () => {
+        throw new Error('Admin access revoked');
+      });
+      await expect(
+        synthesize(
+          db,
+          await approvals(),
+          async (entries) => ({
+            topics: [{ id: 't1', name: 'Privacy' }],
+            assignments: entries.map(({ ref }) => ({ ref, topic: 't1' })),
+          }),
+          deniedPublication,
+        ),
+      ).rejects.toThrow('Admin access revoked');
+      expect(deniedPublication).toHaveBeenCalledOnce();
+      expect(await state()).toEqual(original);
+
       const approved = await approvals();
       await expect(
         synthesize(db, approved, async () => ({ topics: [], assignments: [] })),

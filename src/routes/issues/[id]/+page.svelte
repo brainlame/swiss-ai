@@ -1,4 +1,6 @@
 <script lang="ts">
+  import DeleteIssue from '#lib/components/DeleteIssue.svelte';
+  import { goto } from '$app/navigation';
   import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
@@ -97,14 +99,22 @@
             signedIn={!!page.data.signedIn}
           />{/key}
       </section>{/if}
-    {#if data.owns}<div class="owner-actions">
-        <a class="button secondary" href={'/issues/' + data.item.id + '/edit'}
-          >Edit issue</a
-        ><button
-          class="text-button danger-text"
-          disabled={!ready}
-          onclick={() => confirmDialog.showModal()}>Delete issue</button
-        >
+    {#if data.owns || data.isAdmin}<div class="owner-actions">
+        {#if data.owns}
+          <a class="button secondary" href={'/issues/' + data.item.id + '/edit'}
+            >Edit issue</a
+          >{/if}
+        {#if data.isAdmin}
+          <DeleteIssue
+            id={data.item.id}
+            description={data.item.description}
+            onDeleted={() => goto('/issues?deleted=1')}
+          />
+        {:else}<button
+            class="text-button danger-text"
+            disabled={!ready}
+            onclick={() => confirmDialog.showModal()}>Delete issue</button
+          >{/if}
       </div>{/if}
   </div>
   {#if constitution}<aside class="constitution-aside">
@@ -148,6 +158,7 @@
   aria-labelledby="delete-heading"
 >
   <h2 id="delete-heading">Delete this issue?</h2>
+  <p class="citizen-text">{data.item.description.slice(0, 200)}</p>
   <p>
     This removes your issue and all its attached evidence. This action cannot be
     undone.

@@ -49,6 +49,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
           uid,
           uid + '@ranking.fixture.invalid',
         ]);
+      await db.query('insert into private.admin_members(user_id) values($1)', [
+        voters[0],
+      ]);
       for (const [i, id] of [...ids, ...hidden].entries()) {
         await db.query(
           "insert into public.cases(id,constitution_number,description,improvement,status,behavior,created_at) values($1,$2,$3,'rank-proposal',$4,$5,'2026-01-01')",
@@ -80,12 +83,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       await db.end();
     });
     it('ranks by upvotes alone, excludes hidden issues and paginates ties without gaps', async () => {
-      await role('anon');
+      await role(userInfo().username);
       const expected = (
         await db.query(
           "select id,upvotes from public.cases where description like 'rank-fixture%' and status='published' order by upvotes desc,created_at desc,id desc",
         )
       ).rows;
+      await role('authenticated', voters[0]);
       let result = await browse();
       const all: any[] = [];
       expect(result.items).toHaveLength(11); // ten and a look-ahead row
@@ -200,7 +204,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       await db.query('select public.vote_case($1,1::smallint)', [ids[0]]);
       expect((await overview()).revision).toBe(updated.revision); // retries are idempotent
       await db.query('select public.vote_case($1,0::smallint)', [ids[0]]);
-      expect((await browse()).items[0].upvotes).toBe(9);
+      expect((await browse()).items[0].upvotes).toBe(0);
+      const counts = (
+        await db.query(
+          'select public.case_discussions(array[$1::uuid]) as data',
+          [ids[0]],
+        )
+      ).rows[0].data[0];
+      expect(counts.total_votes).toBe(14);
       await denied('select public.browse_trending_issues(p_time=>now())');
     });
     it('tracks publish/edit/delete changes while drafts do not invalidate public data', async () => {
