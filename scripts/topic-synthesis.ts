@@ -20,6 +20,22 @@ export async function readSnapshot(db: pg.Client) {
   ).rows;
 }
 
+// Automatic website synthesis deliberately does not retrieve transcript evidence.
+export async function readClassificationContent(db: pg.Client) {
+  return (
+    await db.query<
+      SnapshotIssue & {
+        description: string;
+        improvement: string;
+        principle: string;
+      }
+    >(
+      `select ${snapshotFields}, c.description, c.improvement,
+     coalesce(p.text, 'No principle referenced') as principle ${snapshotSource}`,
+    )
+  ).rows;
+}
+
 // Preparation reads evidence locally. The review file remains unapproved.
 export async function prepareReview(db: pg.Client) {
   const { rows } = await db.query<
@@ -71,7 +87,13 @@ export async function synthesize(
     throw new TopicError('A topic synthesis run is already in progress.');
   try {
     const snapshot = await readSnapshot(db);
-    const inputs = approvedInputs(snapshot, manifest);
+    const inputs = approvedInputs(
+      snapshot,
+      typeof manifest === 'function' ? await manifest(db) : manifest,
+      typeof manifest === 'function'
+        ? { description: 24000, improvement: 24000, principle: 16000 }
+        : undefined,
+    );
     const { topics, assignments } = await classify(inputs, request);
     const issueIds = new Map(
       inputs.map(({ ref }, index) => [ref, snapshot[index].id]),
@@ -88,7 +110,7 @@ export async function synthesize(
       const current = await readSnapshot(db);
       if (JSON.stringify(current) !== JSON.stringify(snapshot))
         throw new TopicError(
-          'Published issue content changed during synthesis. Review a fresh snapshot and retry.',
+          'Published issue content changed during synthesis. Retry with the current issues.',
         );
       await db.query(
         'lock table public.issue_topics in share row exclusive mode',

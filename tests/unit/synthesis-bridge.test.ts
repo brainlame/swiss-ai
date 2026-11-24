@@ -22,6 +22,7 @@ vi.mock('../../scripts/topic-model.ts', async (original) => ({
   checkOpenRouterQuota: deps.quota,
   openRouter: () => deps.classifier,
 }));
+import { automaticManifest } from '../../scripts/topic-automatic.ts';
 import { publishTopics } from '#lib/server/topic-synthesis.js';
 beforeEach(() => {
   for (const fn of Object.values(deps)) fn.mockReset();
@@ -30,10 +31,8 @@ describe('website synthesis bridge', () => {
   it('uses the shared CLI engine, quota check and publication guard', async () => {
     deps.synthesize.mockResolvedValue({ topics: 1, issues: 2, revision: '3' });
     const guard = vi.fn();
-    const manifest = [{ approved: true }];
     expect(
       await publishTopics(
-        manifest,
         { databaseUrl: 'synthetic', apiKey: 'synthetic' },
         guard,
       ),
@@ -41,7 +40,7 @@ describe('website synthesis bridge', () => {
     expect(deps.quota).toHaveBeenCalledWith('synthetic');
     expect(deps.synthesize).toHaveBeenCalledWith(
       expect.anything(),
-      manifest,
+      automaticManifest,
       deps.classifier,
       guard,
     );
@@ -51,7 +50,6 @@ describe('website synthesis bridge', () => {
     deps.quota.mockRejectedValue(new Error('Quota unavailable'));
     await expect(
       publishTopics(
-        [],
         { databaseUrl: 'synthetic', apiKey: 'synthetic' },
         async () => {},
       ),
@@ -60,7 +58,7 @@ describe('website synthesis bridge', () => {
     expect(deps.synthesize).not.toHaveBeenCalled();
   });
   it('reports missing configuration without connecting or calling the model', async () => {
-    await expect(publishTopics([], {}, async () => {})).rejects.toThrow(
+    await expect(publishTopics({}, async () => {})).rejects.toThrow(
       'Configure server-only',
     );
     expect(deps.connect).not.toHaveBeenCalled();

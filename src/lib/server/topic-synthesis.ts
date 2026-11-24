@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { automaticManifest } from '../../../scripts/topic-automatic.ts';
 import { synthesize } from '../../../scripts/topic-synthesis.ts';
 import {
   checkOpenRouterQuota,
@@ -8,7 +9,6 @@ import {
 
 // A narrow bridge to the same trusted job used by the CLI. No SQL is supplied by callers.
 export async function publishTopics(
-  manifest: unknown,
   config: { databaseUrl?: string; apiKey?: string },
   beforePublish: () => Promise<void>,
 ) {
@@ -25,7 +25,7 @@ export async function publishTopics(
     await checkOpenRouterQuota(config.apiKey);
     return await synthesize(
       db,
-      manifest,
+      automaticManifest,
       openRouter(config.apiKey),
       beforePublish,
     );

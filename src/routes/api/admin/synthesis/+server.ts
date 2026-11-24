@@ -11,22 +11,13 @@ export const POST: RequestHandler = async (event) => {
   await requireAdmin(event);
   if (event.request.headers.get('origin') !== event.url.origin)
     error(403, 'Invalid request origin.');
-  if (
-    !event.request.headers.get('content-type')?.startsWith('application/json')
-  )
-    error(415, 'Select a reviewed JSON approval file.');
-  const body = await event.request.text();
-  if (new TextEncoder().encode(body).length > 500000)
-    error(413, 'Approval file is too large. The limit is 500 KB.');
-  let manifest: unknown;
-  try {
-    manifest = JSON.parse(body);
-  } catch {
-    error(400, 'The approval file could not be read as JSON.');
-  }
+  if ((await event.request.text()).trim())
+    error(
+      400,
+      'Synthesis uses the current database issues; no request data is accepted.',
+    );
   try {
     const result = await publishTopics(
-      manifest,
       {
         databaseUrl: DATABASE_URL,
         apiKey: OPENROUTER_API_KEY,

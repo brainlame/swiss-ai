@@ -11,7 +11,7 @@ function event(
   admin = true,
   signedIn = true,
   origin = 'https://app.test',
-  body = '[]',
+  body = '',
 ) {
   return {
     locals: {
@@ -39,19 +39,16 @@ describe('admin synthesis endpoint', () => {
     await expect(POST(event(false))).rejects.toMatchObject({ status: 403 });
     expect(publishTopics).not.toHaveBeenCalled();
   });
-  it('rejects forged origins, invalid JSON and oversized manifests', async () => {
+  it('rejects forged origins and caller-supplied issue data', async () => {
     await expect(
       POST(event(true, true, 'https://evil.test')),
     ).rejects.toMatchObject({ status: 403 });
     await expect(POST(event(true, true, undefined, '{'))).rejects.toMatchObject(
       { status: 400 },
     );
-    await expect(
-      POST(event(true, true, undefined, ' '.repeat(500001))),
-    ).rejects.toMatchObject({ status: 413 });
     expect(publishTopics).not.toHaveBeenCalled();
   });
-  it('passes the reviewed file to the shared job and returns only the publication summary', async () => {
+  it('runs the database-backed shared job and returns only the publication summary', async () => {
     vi.mocked(publishTopics).mockResolvedValue({
       topics: 2,
       issues: 20,
@@ -64,23 +61,20 @@ describe('admin synthesis endpoint', () => {
       revision: '9',
     });
     expect(publishTopics).toHaveBeenCalledWith(
-      [],
       { databaseUrl: 'synthetic-database', apiKey: 'synthetic-key' },
       expect.any(Function),
     );
   });
   it('rechecks membership at publication and denies an admin revoked during classification', async () => {
     const e = event();
-    vi.mocked(publishTopics).mockImplementation(
-      async (_manifest, _config, check) => {
-        vi.mocked(e.locals.supabase.rpc).mockResolvedValue({
-          data: false,
-          error: null,
-        } as never);
-        await check();
-        throw new Error('Unreachable');
-      },
-    );
+    vi.mocked(publishTopics).mockImplementation(async (_config, check) => {
+      vi.mocked(e.locals.supabase.rpc).mockResolvedValue({
+        data: false,
+        error: null,
+      } as never);
+      await check();
+      throw new Error('Unreachable');
+    });
     await expect(POST(e)).rejects.toMatchObject({ status: 403 });
   });
   it('returns actionable validation and overlap failures without serializing private exceptions', async () => {
@@ -89,9 +83,7 @@ describe('admin synthesis endpoint', () => {
     );
     expect((await POST(event())).status).toBe(409);
     vi.mocked(publishTopics).mockRejectedValueOnce(
-      new TopicError(
-        'Issue 1 is missing approval or has changed since review.',
-      ),
+      new TopicError('Issue 1 may contain credentials or confidential text.'),
     );
     const invalid = await POST(event());
     expect(invalid.status).toBe(400);

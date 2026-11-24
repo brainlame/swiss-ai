@@ -76,7 +76,11 @@ function approvedText(value: unknown, limit: number) {
   return value.trim();
 }
 
-export function approvedInputs(snapshot: SnapshotIssue[], manifest: unknown) {
+export function approvedInputs(
+  snapshot: SnapshotIssue[],
+  manifest: unknown,
+  limits = { description: 1800, improvement: 1800, principle: 800 },
+) {
   if (!Array.isArray(manifest) || manifest.length !== snapshot.length)
     throw new TopicError(
       'The approved file must cover every published issue in the current snapshot.',
@@ -93,9 +97,9 @@ export function approvedInputs(snapshot: SnapshotIssue[], manifest: unknown) {
     try {
       return {
         ref: `i${index + 1}`,
-        description: approvedText(entry.description, 1800),
-        improvement: approvedText(entry.improvement, 1800),
-        principle: approvedText(entry.principle, 800),
+        description: approvedText(entry.description, limits.description),
+        improvement: approvedText(entry.improvement, limits.improvement),
+        principle: approvedText(entry.principle, limits.principle),
         behavior: issue.behavior ?? 'unclassified',
         ...(entry.evidence
           ? { evidence: approvedText(entry.evidence, 2400) }

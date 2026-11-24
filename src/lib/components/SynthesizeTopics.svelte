@@ -6,31 +6,18 @@
     busy = $state(false),
     message = $state(''),
     success = $state('');
-  let file = $state<File | null>(null);
   onMount(() => {
     ready = true;
   });
   async function publish(event: SubmitEvent) {
     event.preventDefault();
-    if (busy || !file) return;
+    if (busy) return;
     busy = true;
     message = '';
     success = '';
     try {
-      if (file.size > 500000)
-        throw new Error('Choose a JSON approval file smaller than 500 KB.');
-      const content = await file.text();
-      try {
-        JSON.parse(content);
-      } catch {
-        throw new Error(
-          'This file is not valid JSON. Select your reviewed topic-approval.json file.',
-        );
-      }
       const response = await fetch('/api/admin/synthesis', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: content,
       });
       const result = await response.json().catch(() => null);
       if (!response.ok)
@@ -69,26 +56,16 @@
 >
   <h2 id="synthesis-title">Synthesize cases</h2>
   <p>
-    Choose the reviewed approval file you use with the command-line job. Only
-    approved, sanitized text is sent to OpenRouter.
+    Generate fresh topics from all published issues? Descriptions and proposed
+    changes are sent to a free AI provider after automatic privacy filtering.
+    Filtering cannot catch every personal detail. Chat transcripts and
+    screenshots are excluded.
   </p>
   <p>
     This replaces the topic list and assignments for all published issues. Keep
     this page open until the run finishes.
   </p>
   <form onsubmit={publish}>
-    <label for="topic-approval">Reviewed approval file</label>
-    <input
-      id="topic-approval"
-      type="file"
-      accept=".json,application/json"
-      required
-      disabled={busy}
-      onchange={(event) => {
-        file = event.currentTarget.files?.[0] ?? null;
-        message = '';
-      }}
-    />
     {#if message}<p class="notice error" role="alert">{message}</p>{/if}
     {#if busy}<div role="status">
         <p>Generating topics… This can take several minutes.</p>
@@ -101,7 +78,7 @@
         disabled={busy}
         onclick={() => dialog.close()}>Cancel</button
       >
-      <button class="button" disabled={busy || !file}
+      <button class="button" disabled={busy}
         >{busy ? 'Synthesizing…' : 'Synthesize cases'}</button
       >
     </div>

@@ -262,7 +262,7 @@ test('deletion retains search, topic and sort, resets pagination, and supports k
   ).toBe(true);
 });
 
-test('synthesis selects a reviewed file, reports progress and failures, and refreshes after success', async ({
+test('synthesis confirms without a file, reports progress and failures, and refreshes after success', async ({
   page,
   request,
 }) => {
@@ -279,12 +279,8 @@ test('synthesis selects a reviewed file, reports progress and failures, and refr
     name: 'Synthesize cases',
     exact: true,
   });
-  await expect(submit).toBeDisabled();
-  await dialog.getByLabel('Reviewed approval file').setInputFiles({
-    name: 'reviewed.topic-approval.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from('[]'),
-  });
+  await expect(submit).toBeEnabled();
+  await expect(dialog.locator('input[type=file]')).toHaveCount(0);
   let finish!: () => void;
   const waiting = new Promise<void>((resolve) => {
     finish = resolve;
@@ -292,13 +288,13 @@ test('synthesis selects a reviewed file, reports progress and failures, and refr
   let calls = 0;
   await page.route('**/api/admin/synthesis', async (route) => {
     calls++;
-    expect(route.request().postData()).toBe('[]');
+    expect(route.request().postData()).toBe(null);
     if (calls === 1) {
       await waiting;
       return route.fulfill({
         status: 400,
         json: {
-          message: 'Issue 1 is missing approval or has changed since review.',
+          message: 'OpenRouter free model request failed (HTTP 429).',
         },
       });
     }
@@ -311,10 +307,12 @@ test('synthesis selects a reviewed file, reports progress and failures, and refr
   });
   await submit.click();
   await expect(dialog.getByRole('progressbar')).toBeVisible();
-  await expect(dialog.getByLabel('Reviewed approval file')).toBeDisabled();
+  await expect(
+    dialog.getByRole('button', { name: 'Cancel', exact: true }),
+  ).toBeDisabled();
   await expect.poll(() => calls).toBe(1);
   finish();
-  await expect(dialog.getByRole('alert')).toContainText('changed since review');
+  await expect(dialog.getByRole('alert')).toContainText('HTTP 429');
   await submit.click();
   await expect(dialog).toHaveCount(0);
   await expect(

@@ -6,6 +6,7 @@ import {
   readSnapshot,
   synthesize,
 } from '../../scripts/synthesize-topics.ts';
+import { automaticManifest } from '../../scripts/topic-automatic.ts';
 import { openRouter } from '../../scripts/topic-model.ts';
 
 describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
@@ -30,14 +31,23 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
         throw new Error('Topic tests require a fresh disposable database.');
       ready = true;
       await db.query(
-        `insert into public.cases(id, constitution_number, description, improvement, status, behavior)
+        `insert into public.cases(id, constitution_number, description, improvement, status, behavior, transcript)
       select id, case when n <= 24 then 2 else null end,
         case when n <= 22 then 'Citation supplied'
              when n <= 24 then 'Missing attribution'
              else 'Citation exposes a private address' end,
-        'Review the behavior', 'published', 'bad'
+        'Review the behavior', 'published', 'bad', $2::jsonb
       from unnest($1::uuid[]) with ordinality as u(id, n)`,
-        [ids],
+        [
+          ids,
+          JSON.stringify([
+            {
+              role: 'user',
+              text: 'Private raw transcript: example@example.invalid',
+            },
+            { role: 'assistant', text: 'Raw evidence' },
+          ]),
+        ],
       );
     });
 
@@ -192,6 +202,53 @@ describe.skipIf(!process.env.TEST_TOPIC_DATABASE_URL)(
       } finally {
         await other.query('reset role');
       }
+    });
+
+    it('automatically reads the entire current corpus, filters identifiers, omits evidence, and fails closed on secrets', async () => {
+      await db.query('update public.cases set description=$1 where id=$2', [
+        'Citation supplied to citizen@example.invalid at https://example.invalid/private',
+        ids[0],
+      ]);
+      let seen = 0;
+      await synthesize(db, automaticManifest, async (entries, reconcile) => {
+        if (!reconcile) {
+          seen += entries.length;
+          expect(JSON.stringify(entries)).not.toMatch(
+            /@|https:|Raw evidence|Private raw transcript|issueId|fingerprint/,
+          );
+          expect(entries.every((entry) => !('evidence' in entry))).toBe(true);
+        }
+        return {
+          topics: [{ id: 't1', name: 'Source verification' }],
+          assignments: entries.map(({ ref }) => ({ ref, topic: 't1' })),
+        };
+      });
+      expect(seen).toBe(27);
+      const before = (
+        await db.query(
+          'select * from public.issue_topic_assignments order by issue_id',
+        )
+      ).rows;
+      await db.query('update public.cases set description=$1 where id=$2', [
+        'password: syntheticSensitiveValue',
+        ids[0],
+      ]);
+      const request = vi.fn();
+      await expect(synthesize(db, automaticManifest, request)).rejects.toThrow(
+        'credentials or confidential',
+      );
+      expect(request).not.toHaveBeenCalled();
+      expect(
+        (
+          await db.query(
+            'select * from public.issue_topic_assignments order by issue_id',
+          )
+        ).rows,
+      ).toEqual(before);
+      await db.query('update public.cases set description=$1 where id=$2', [
+        'Citation supplied',
+        ids[0],
+      ]);
     });
 
     it('preserves published rows on malformed, overlapping and stale runs', async () => {
