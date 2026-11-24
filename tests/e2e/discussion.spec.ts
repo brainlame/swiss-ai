@@ -6,7 +6,7 @@ test.beforeEach(async ({ request }) => {
     true,
   );
 });
-test('public issue cards show voting, anonymous relative-time comments and paginated threads', async ({
+test('public issue cards show voting, attributed relative-time comments and paginated threads', async ({
   page,
   request,
 }, info) => {
@@ -40,7 +40,7 @@ test('public issue cards show voting, anonymous relative-time comments and pagin
   await signin(page, 'citizen@fixtures.invalid', '/issues');
   await expect(card.locator('.discussion-comment')).toHaveCount(2);
   await expect(card.locator('.comment-heading strong').first()).toHaveText(
-    'Anonymous',
+    'Name not set',
   );
   await expect(card.locator('time').last()).toContainText('hours ago');
   await card
@@ -170,7 +170,7 @@ test('comments and replies preserve text on failure, render safely, persist and 
   const thread = card.locator('.comment-thread').first();
   await thread.getByRole('button', { name: 'Reply', exact: true }).click();
   await thread
-    .getByLabel('Reply to Anonymous')
+    .getByLabel('Reply to Name not set')
     .fill('A reply supporting this observation.');
   await thread.getByRole('button', { name: 'Post reply', exact: true }).click();
   await expect(thread.locator('.comment-replies')).toContainText(
@@ -248,7 +248,7 @@ test('a reply to a long thread appears immediately without skipping unloaded rep
   const thread = card.locator('.comment-thread').first();
   await thread.getByRole('button', { name: 'Reply', exact: true }).click();
   await thread
-    .getByLabel('Reply to Anonymous')
+    .getByLabel('Reply to Name not set')
     .fill('Newest reply in a long discussion.');
   await thread.getByRole('button', { name: 'Post reply', exact: true }).click();
   await expect(

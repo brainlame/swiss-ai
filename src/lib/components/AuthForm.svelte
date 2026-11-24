@@ -127,5 +127,7 @@
       >
     </form>
   {/if}
-  <p class="helper">You appear as Anonymous. Your email stays private.</p>
+  <p class="helper">
+    Your profile name and picture are public. Your email stays private.
+  </p>
 </div>

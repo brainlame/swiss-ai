@@ -139,7 +139,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       ).toEqual([]);
       await denied('select public.discussion_comments($1)', [draft]);
     });
-    it('creates idempotent anonymous comments/replies and enforces same-case, one-level threads', async () => {
+    it('creates idempotent attributed comments/replies and enforces same-case, one-level threads', async () => {
       await role('authenticated', owner);
       for (let i = 0; i < 2; i++)
         expect(
@@ -175,7 +175,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         my_vote: 0,
       });
       expect(data.preview[0]).toMatchObject({
-        author: 'Anonymous',
+        author: 'Name not set',
         reply_count: 1,
         can_delete: false,
       });

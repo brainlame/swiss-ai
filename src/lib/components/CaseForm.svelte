@@ -227,7 +227,10 @@
         Your issue is saved. <a href={done}>Open your issue</a>
       </p>{/if}
     <div class="form-footer">
-      <p class="muted">Published as Anonymous. Your email stays private.</p>
+      <p class="muted">
+        Your profile name and picture appear on this issue. Your email stays
+        private.
+      </p>
       <button
         class="button"
         data-tour={item ? undefined : 'submit'}

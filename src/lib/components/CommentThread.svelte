@@ -332,7 +332,7 @@
         aria-describedby={'comment-help-' + fieldId}></textarea>
       <div class="comment-composer-footer">
         <!-- <span id={'comment-help-' + fieldId}>Your comment will be public.</span> -->
-         <button
+        <button
           type="submit"
           class="button small-button"
           disabled={!ready || posting || !draft.trim()}
@@ -430,7 +430,7 @@
             class="reply-composer"
             onsubmit={postReply}
           >
-            <label for={'reply-' + comment.id}>Reply to Anonymous</label
+            <label for={'reply-' + comment.id}>Reply to {comment.author}</label
             ><textarea
               id={'reply-' + comment.id}
               bind:this={replyInput}

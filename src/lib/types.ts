@@ -6,6 +6,8 @@ export type Screenshot = {
 };
 export type CaseRecord = {
   id: string;
+  author?: string;
+  avatar_url?: string | null;
   constitution_number: number | null;
   description: string;
   improvement: string;
@@ -37,6 +39,8 @@ export const behaviorLabel = (value: 'good' | 'bad' | null) =>
 export type CaseSummary = Pick<
   CaseRecord,
   | 'id'
+  | 'author'
+  | 'avatar_url'
   | 'constitution_number'
   | 'description'
   | 'improvement'

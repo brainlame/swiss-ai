@@ -9,7 +9,9 @@ export type Comment = {
   body: string;
   created_at: string;
   is_deleted: boolean;
-  author: 'Anonymous';
+  author: string;
+  avatar_path?: string | null;
+  avatar_url?: string | null;
   can_delete: boolean;
   reply_count: number;
 };

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Avatar from '#lib/components/Avatar.svelte';
   import DeleteIssue from '#lib/components/DeleteIssue.svelte';
   import { goto } from '$app/navigation';
   import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
@@ -37,8 +38,12 @@
       {#if data.item.constitution_number}<span class="pill"
           >Principle #{data.item.constitution_number}</span
         >{/if}<span class="muted"
-        >Anonymous · <time datetime={data.item.created_at}
-          >{date(data.item.created_at)}</time
+        ><span class="profile-identity"
+          ><Avatar src={data.item.avatar_url} />{data.item.author ??
+            'Name not set'}</span
+        >
+        ·
+        <time datetime={data.item.created_at}>{date(data.item.created_at)}</time
         ></span
       >
     </div>

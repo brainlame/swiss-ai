@@ -1,5 +1,6 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { avatarUrls } from '#lib/server/profiles.js';
 import { isAdmin } from '#lib/server/admin.js';
 import { discussions } from '#lib/server/discussion.js';
 import { browseParams, rankedParams, UUID } from '#lib/validation.js';
@@ -35,6 +36,14 @@ export async function withImages<T extends { id: string }>(
     )
     .order('display_order');
   if (e) error(503, 'Screenshot records could not be loaded.');
+  const authors = await db.rpc('case_authors', {
+    p_cases: rows.map((row) => row.id),
+  });
+  if (authors.error)
+    error(
+      503,
+      'Issue authors could not be loaded. Apply the profile migration and retry.',
+    );
   const images = data ?? [];
   const { data: urls, error: signError } = images.length
     ? await db.storage.from('screenshots').createSignedUrls(
@@ -43,15 +52,19 @@ export async function withImages<T extends { id: string }>(
       )
     : { data: [], error: null };
   if (signError) error(503, 'Screenshots could not be loaded. Please retry.');
-  return rows.map((r) => ({
-    ...r,
-    screenshots: images
-      .filter((s) => s.case_id === r.id)
-      .map((s) => ({
-        ...s,
-        url: urls?.find((u) => u.path === s.storage_path)?.signedUrl ?? '',
-      })) as Screenshot[],
-  }));
+  return avatarUrls(
+    db,
+    rows.map((r) => ({
+      ...r,
+      ...(authors.data?.find((author: any) => author.case_id === r.id) ?? {}),
+      screenshots: images
+        .filter((s) => s.case_id === r.id)
+        .map((s) => ({
+          ...s,
+          url: urls?.find((u) => u.path === s.storage_path)?.signedUrl ?? '',
+        })) as Screenshot[],
+    })),
+  );
 }
 export async function browse(db: SupabaseClient, url: URL, mine = false) {
   let rows: Omit<CaseSummary, 'screenshots' | 'discussion'>[];

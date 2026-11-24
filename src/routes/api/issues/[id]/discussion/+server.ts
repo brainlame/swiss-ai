@@ -1,3 +1,4 @@
+import { avatarUrls } from '#lib/server/profiles.js';
 import { error, json } from '@sveltejs/kit';
 import { UUID } from '#lib/validation.js';
 import {
@@ -45,7 +46,7 @@ export const GET = async ({ params, url, locals }) => {
       e.code === 'P0002' ? 404 : 503,
       'Comments could not be loaded. Please retry.',
     );
-  return json(data);
+  return json(await avatarUrls(locals.supabase, data));
 };
 export const POST = async ({ params, url, locals, request }) => {
   checkedId(params.id);
@@ -131,17 +132,13 @@ export const POST = async ({ params, url, locals, request }) => {
   // Return the saved public message so a new reply is visible immediately,
   // even when older replies still have unloaded pages. No account fields.
   if (body.action === 'comment' && typeof data === 'string') {
-    const { data: comment } = await locals.supabase
-      .from('case_comments')
-      .select('id,parent_id,body,created_at,is_deleted')
-      .eq('id', data)
-      .maybeSingle();
+    const { data: comment } = await locals.supabase.rpc('get_comment', {
+      p_id: data,
+    });
     return json({
       saved: true,
       id: data,
-      comment: comment
-        ? { ...comment, author: 'Anonymous', can_delete: true, reply_count: 0 }
-        : null,
+      comment: comment ? await avatarUrls(locals.supabase, comment) : null,
     });
   }
   return json({ saved: true, id: data });

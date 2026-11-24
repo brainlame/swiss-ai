@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Avatar from '#lib/components/Avatar.svelte';
   import SynthesizeTopics from '#lib/components/SynthesizeTopics.svelte';
   import DeleteIssue from '#lib/components/DeleteIssue.svelte';
   import CaseDiscussion from '#lib/components/CaseDiscussion.svelte';
@@ -373,9 +374,10 @@
             </div>
           </div>
           <div class="case-meta">
-            <span>Anonymous</span><time datetime={item.created_at}
-              >{date(item.created_at)}</time
-            >
+            <span class="profile-identity"
+              ><Avatar src={item.avatar_url} />{item.author ??
+                'Name not set'}</span
+            ><time datetime={item.created_at}>{date(item.created_at)}</time>
           </div>
           {#if item.status === 'deleting'}<p class="notice error">
               Deletion pending

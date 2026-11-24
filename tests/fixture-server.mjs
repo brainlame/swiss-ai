@@ -34,6 +34,7 @@ const users = [
   user_metadata: {},
 }));
 const files = new Map();
+const deletedUsers = new Set();
 let failStorageDelete = false;
 const emailCodes = new Map();
 // Isolated OAuth transport: verifies real PKCE challenges without contacting Google.
@@ -61,7 +62,9 @@ function user(req) {
     const value = req.headers.authorization?.replace('Bearer ', '');
     if (!value?.endsWith('.fixture')) return null;
     const claim = JSON.parse(Buffer.from(value.split('.')[1], 'base64url'));
-    return users.find((u) => u.id === claim.sub) ?? null;
+    return (
+      users.find((u) => u.id === claim.sub && !deletedUsers.has(u.id)) ?? null
+    );
   } catch {
     return null;
   }
@@ -80,12 +83,16 @@ async function seed() {
   const db = await pool.connect();
   try {
     await db.query('begin');
+    deletedUsers.clear();
+    await db.query('delete from private.profiles');
+    await db.query('delete from private.avatar_uploads');
+    await db.query("delete from storage.objects where bucket_id='avatars'");
     await db.query('delete from private.admin_members');
     await db.query(
       `delete from public.cases where id in(
         select o.case_id from private.case_owners o join auth.users u on u.id=o.user_id
         where u.email like '%@fixtures.invalid'
-      )`,
+      ) or id::text like 'eeeeeeee-0000-4000-8000-%'`,
     );
     await db.query(
       "delete from public.issue_topics where id='fixture-citations'",
@@ -201,6 +208,17 @@ const server = http.createServer(async (req, res) => {
     });
     res.end(JSON.stringify(data));
   };
+  if (path.startsWith('/auth/v1/admin/users/') && req.method === 'DELETE') {
+    if (req.headers.authorization !== 'Bearer fixture-service-role') {
+      send(403, { message: 'Not authorized' });
+      return;
+    }
+    const id = path.split('/').pop();
+    await pool.query('delete from auth.users where id=$1', [id]);
+    deletedUsers.add(id);
+    send(200, { id });
+    return;
+  }
   if (path === '/__test/reset') {
     try {
       await seed();
@@ -391,14 +409,24 @@ const server = http.createServer(async (req, res) => {
     await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
       u?.id ?? '',
     ]);
-    await db.query('set local role ' + (u ? 'authenticated' : 'anon'));
+    if (req.headers.authorization !== 'Bearer fixture-service-role')
+      await db.query('set local role ' + (u ? 'authenticated' : 'anon'));
     let data;
+    const bucket = path.includes('/avatars') ? 'avatars' : 'screenshots';
     const columns = url.searchParams.get('select') ?? '*';
     if (columns !== '*' && !/^[a-z_]+(?:,[a-z_]+)*$/.test(columns))
       throw new Error('Unsupported fixture projection');
     if (path.startsWith('/rest/v1/rpc/')) {
       const name = path.split('/').pop();
       const allowed = [
+        'my_profile',
+        'save_profile',
+        'case_authors',
+        'get_comment',
+        'reserve_avatar',
+        'my_avatar_paths',
+        'prune_avatars',
+        'release_account_storage',
         'is_admin',
         'case_discussions',
         'discussion_comments',
@@ -444,7 +472,7 @@ const server = http.createServer(async (req, res) => {
       data =
         name === 'browse_cases'
           ? rows
-          : ['pending_paths', 'begin_delete'].includes(name)
+          : ['pending_paths', 'begin_delete', 'my_avatar_paths'].includes(name)
             ? rows.map((r) => r[name])
             : (rows[0]?.[name] ?? null);
     } else if (path.startsWith('/rest/v1/')) {
@@ -483,30 +511,31 @@ const server = http.createServer(async (req, res) => {
       if (req.headers.accept?.includes('vnd.pgrst.object'))
         data = data[0] ?? null;
     } else if (
-      path.startsWith('/storage/v1/object/sign/screenshots') &&
+      path.startsWith('/storage/v1/object/sign/' + bucket) &&
       req.method === 'POST'
     ) {
       data = [];
       for (const p of body.paths) {
         const { rows } = await db.query(
-          "select name from storage.objects where bucket_id='screenshots' and name=$1",
-          [p],
+          'select name from storage.objects where bucket_id=$2 and name=$1',
+          [p, bucket],
         );
         data.push(
           rows.length
             ? {
                 path: p,
-                signedURL: '/object/sign/screenshots/' + p + '?token=fixture',
+                signedURL:
+                  '/object/sign/' + bucket + '/' + p + '?token=fixture',
                 error: null,
               }
             : { path: p, error: 'Not authorized' },
         );
       }
     } else if (
-      path.startsWith('/storage/v1/object/sign/screenshots/') &&
+      path.startsWith('/storage/v1/object/sign/' + bucket + '/') &&
       req.method === 'GET'
     ) {
-      const p = path.slice('/storage/v1/object/sign/screenshots/'.length);
+      const p = path.slice(('/storage/v1/object/sign/' + bucket + '/').length);
       const file = files.get(p);
       await db.query('commit');
       committed = true;
@@ -518,10 +547,10 @@ const server = http.createServer(async (req, res) => {
       res.end(file.bytes);
       return;
     } else if (
-      path.startsWith('/storage/v1/object/screenshots/') &&
+      path.startsWith('/storage/v1/object/' + bucket + '/') &&
       req.method === 'POST'
     ) {
-      const p = path.slice('/storage/v1/object/screenshots/'.length),
+      const p = path.slice(('/storage/v1/object/' + bucket + '/').length),
         mime = req.headers['content-type'];
       if (
         !['image/png', 'image/jpeg', 'image/webp'].includes(mime) ||
@@ -529,13 +558,13 @@ const server = http.createServer(async (req, res) => {
       )
         throw new Error('Invalid upload');
       await db.query(
-        "insert into storage.objects(bucket_id,name,metadata) values('screenshots',$1,$2)",
-        [p, JSON.stringify({ size: bytes.length, mimetype: mime })],
+        'insert into storage.objects(bucket_id,name,metadata) values($3,$1,$2)',
+        [p, JSON.stringify({ size: bytes.length, mimetype: mime }), bucket],
       );
       files.set(p, { bytes, mime });
-      data = { Key: 'screenshots/' + p, Id: randomUUID() };
+      data = { Key: bucket + '/' + p, Id: randomUUID() };
     } else if (
-      path === '/storage/v1/object/screenshots' &&
+      path === '/storage/v1/object/' + bucket &&
       req.method === 'DELETE'
     ) {
       if (failStorageDelete)
@@ -543,8 +572,8 @@ const server = http.createServer(async (req, res) => {
       data = [];
       for (const p of body.prefixes ?? []) {
         const { rows } = await db.query(
-          "delete from storage.objects where bucket_id='screenshots' and name=$1 returning id,name",
-          [p],
+          'delete from storage.objects where bucket_id=$2 and name=$1 returning id,name',
+          [p, bucket],
         );
         if (rows.length) {
           files.delete(p);

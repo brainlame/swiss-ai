@@ -50,7 +50,7 @@ model CaseOwner {
  caseId String @id @map("case_id") @db.Uuid
  userId String @map("user_id") @db.Uuid
  case Case @relation(fields:[caseId],references:[id],onDelete:Cascade)
- // user_id references auth.users with ON DELETE RESTRICT; Auth is managed by Supabase.
+ // user_id references auth.users with ON DELETE CASCADE; Auth is managed by Supabase.
  @@index([userId,caseId],map:"case_owners_user_idx")
  @@map("case_owners")
  @@schema("private")
@@ -116,7 +116,7 @@ model CommentOwner {
  commentId String @id @map("comment_id") @db.Uuid
  userId String @map("user_id") @db.Uuid
  comment CaseComment @relation(fields:[commentId],references:[id],onDelete:Cascade,onUpdate:NoAction)
- // user_id references auth.users ON DELETE RESTRICT. No public profile exists.
+ // user_id references auth.users ON DELETE CASCADE. No public profile exists.
  @@index([userId,commentId],map:"comment_owners_user_idx")
  @@map("comment_owners")
  @@schema("private")
@@ -166,5 +166,26 @@ model AdminMember {
  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz
  // user_id references auth.users ON DELETE CASCADE. No application-role grants.
  @@map("admin_members")
+ @@schema("private")
+}
+
+model Profile {
+ userId String @id @map("user_id") @db.Uuid
+ firstName String @default("") @map("first_name")
+ lastName String @default("") @map("last_name")
+ avatarPath String? @unique @map("avatar_path")
+ // SQL checks name lengths, denies direct app access, and links auth.users ON DELETE CASCADE.
+ @@map("profiles")
+ @@schema("private")
+}
+model AvatarUpload {
+ path String @id
+ userId String @map("user_id") @db.Uuid
+ mimeType String @map("mime_type")
+ byteSize BigInt @map("byte_size")
+ createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+ // SQL links auth.users ON DELETE CASCADE and validates MIME type and 2 MB size.
+ @@index([userId],map:"avatar_uploads_user_idx")
+ @@map("avatar_uploads")
  @@schema("private")
 }

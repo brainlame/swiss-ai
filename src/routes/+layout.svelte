@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.css';
+  import Avatar from '#lib/components/Avatar.svelte';
   import Tutorial from '#lib/components/Tutorial.svelte';
   import { onMount } from 'svelte';
   import { navigating, page } from '$app/state';
@@ -112,6 +113,17 @@
         id="account-menu"
         class="account-popover"
       >
+        <div class="account-identity">
+          <Avatar src={data.profile?.avatar_url} size={44} />
+          <div>
+            <strong
+              >{[data.profile?.first_name, data.profile?.last_name]
+                .filter(Boolean)
+                .join(' ') || 'Name not set'}</strong
+            ><span>{data.accountEmail}</span>
+          </div>
+        </div>
+        <a href="/settings" onclick={close}>Settings</a>
         <a href="/my-issues" onclick={close}>My Issues</a>
         <form action="/signout" method="POST"><button>Sign Out</button></form>
       </div>{/if}

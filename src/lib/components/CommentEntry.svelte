@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Avatar from '#lib/components/Avatar.svelte';
   import type { Comment } from '#lib/discussion.js';
   import { relativeTime } from '#lib/discussion.js';
   let {
@@ -18,9 +19,12 @@
   } = $props();
 </script>
 
-<article class="discussion-comment" aria-label="Anonymous comment">
+<article class="discussion-comment" aria-label={comment.author + ' comment'}>
   <div class="comment-heading">
-    <strong>Anonymous</strong><time
+    <span class="profile-identity"
+      ><Avatar src={comment.avatar_url} /><strong>{comment.author}</strong
+      ></span
+    ><time
       datetime={comment.created_at}
       title={new Date(comment.created_at).toLocaleString('en')}
       >{relativeTime(comment.created_at, now)}</time
